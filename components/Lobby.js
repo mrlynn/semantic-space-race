@@ -49,8 +49,19 @@ export default function Lobby({
   if (gameCode) {
     // In lobby
     return (
-      <Container maxWidth="md" sx={{ mt: 8 }}>
-        <Paper elevation={3} sx={{ p: 4 }}>
+      <Container maxWidth="md" sx={{ mt: 8, position: 'relative', zIndex: 2 }}>
+        <Paper
+          elevation={6}
+          sx={{
+            p: 5,
+            borderRadius: 4,
+            background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.4) 0%, rgba(2, 52, 48, 0.95) 50%, rgba(0, 30, 43, 0.95) 100%)',
+            backdropFilter: 'blur(20px)',
+            border: '2px solid',
+            borderColor: 'primary.main',
+            boxShadow: '0 8px 32px rgba(0, 237, 100, 0.2)',
+          }}
+        >
           <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
             <MongoDBLogo width={150} height={38} />
           </Box>
@@ -81,7 +92,17 @@ export default function Lobby({
               size="large"
               fullWidth
               onClick={onStartGame}
-              sx={{ mt: 3 }}
+              sx={{
+                mt: 3,
+                py: 1.5,
+                borderRadius: 2,
+                fontSize: '1.1rem',
+                fontWeight: 700,
+                boxShadow: '0 4px 14px rgba(0, 237, 100, 0.4)',
+                '&:hover': {
+                  boxShadow: '0 6px 20px rgba(0, 237, 100, 0.6)',
+                },
+              }}
               disabled={players.length < 1}
             >
               Start Game
@@ -94,8 +115,19 @@ export default function Lobby({
 
   // Join/Create screen
   return (
-    <Container maxWidth="sm" sx={{ mt: 8 }}>
-      <Paper elevation={3} sx={{ p: 4 }}>
+    <Container maxWidth="sm" sx={{ mt: 8, position: 'relative', zIndex: 2 }}>
+      <Paper
+        elevation={6}
+        sx={{
+          p: 5,
+          borderRadius: 4,
+          background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.4) 0%, rgba(2, 52, 48, 0.95) 50%, rgba(0, 30, 43, 0.95) 100%)',
+          backdropFilter: 'blur(20px)',
+          border: '2px solid',
+          borderColor: 'primary.main',
+          boxShadow: '0 8px 32px rgba(0, 237, 100, 0.2)',
+        }}
+      >
         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
           <MongoDBLogo width={180} height={45} />
         </Box>
@@ -133,7 +165,12 @@ export default function Lobby({
           <Button
             variant="contained"
             onClick={handleJoinGame}
-            sx={{ minWidth: 120 }}
+            sx={{
+              minWidth: 120,
+              py: 1.5,
+              borderRadius: 2,
+              fontWeight: 700,
+            }}
           >
             Join Game
           </Button>
@@ -146,6 +183,16 @@ export default function Lobby({
           size="large"
           fullWidth
           onClick={handleCreateGame}
+          sx={{
+            py: 1.5,
+            borderRadius: 2,
+            fontSize: '1.1rem',
+            fontWeight: 700,
+            borderWidth: 2,
+            '&:hover': {
+              borderWidth: 2,
+            },
+          }}
         >
           Create New Game
         </Button>

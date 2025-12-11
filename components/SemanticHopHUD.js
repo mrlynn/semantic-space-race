@@ -14,7 +14,6 @@ import {
   ListItemButton,
   ListItemText,
   Chip,
-  Divider,
 } from '@mui/material';
 import { getSimilarityFeedback } from '@/lib/utils';
 
@@ -55,16 +54,25 @@ export default function SemanticHopHUD({
         top: 64, // Account for header
         width: 400,
         height: 'calc(100vh - 64px)',
-        bgcolor: 'background.paper',
+        bgcolor: 'rgba(2, 52, 48, 0.95)', // Evergreen with transparency
+        backdropFilter: 'blur(10px)',
         overflowY: 'auto',
         zIndex: 1000,
-        p: 2,
-        borderRight: '2px solid',
+        p: 3,
+        borderRight: '3px solid',
         borderColor: 'primary.main',
+        boxShadow: '4px 0 24px rgba(0, 237, 100, 0.15)',
       }}
     >
       {/* Game Info */}
-      <Paper elevation={2} sx={{ p: 2, mb: 2, border: '1px solid', borderColor: 'primary.main' }}>
+      <Paper elevation={3} sx={{
+        p: 2.5,
+        mb: 2.5,
+        border: '2px solid',
+        borderColor: 'primary.main',
+        borderRadius: 3,
+        background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+      }}>
         <Typography variant="h6" gutterBottom color="primary">
           Game Code: {gameCode}
         </Typography>
@@ -79,7 +87,14 @@ export default function SemanticHopHUD({
       </Paper>
 
       {/* Riddle/Definition */}
-      <Paper elevation={2} sx={{ p: 2, mb: 2, border: '1px solid', borderColor: 'primary.main' }}>
+      <Paper elevation={3} sx={{
+        p: 2.5,
+        mb: 2.5,
+        border: '2px solid',
+        borderColor: 'primary.main',
+        borderRadius: 3,
+        background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+      }}>
         <Typography variant="h6" gutterBottom color="primary">
           Riddle
         </Typography>
@@ -89,7 +104,12 @@ export default function SemanticHopHUD({
       </Paper>
 
       {/* Hop Input */}
-      <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
+      <Paper elevation={3} sx={{
+        p: 2.5,
+        mb: 2.5,
+        borderRadius: 3,
+        background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+      }}>
         <form onSubmit={handleSubmit}>
           <TextField
             fullWidth
@@ -159,7 +179,14 @@ export default function SemanticHopHUD({
 
       {/* Guess History */}
       {guesses.length > 0 && (
-        <Paper elevation={2} sx={{ p: 2, mb: 2, border: '1px solid', borderColor: 'primary.main' }}>
+        <Paper elevation={3} sx={{
+          p: 2.5,
+          mb: 2.5,
+          border: '2px solid',
+          borderColor: 'primary.main',
+          borderRadius: 3,
+          background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+        }}>
           <Typography variant="h6" gutterBottom color="primary">
             Your Guesses
           </Typography>
@@ -213,7 +240,12 @@ export default function SemanticHopHUD({
       )}
 
       {/* Progress Indicator */}
-      <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
+      <Paper elevation={3} sx={{
+        p: 2.5,
+        mb: 2.5,
+        borderRadius: 3,
+        background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+      }}>
         <Typography variant="body2" gutterBottom>
           Best Similarity: {Math.round(bestSimilarity * 100)}%
         </Typography>
@@ -233,7 +265,12 @@ export default function SemanticHopHUD({
       </Paper>
 
       {/* Neighbor Panel */}
-      <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
+      <Paper elevation={3} sx={{
+        p: 2.5,
+        mb: 2.5,
+        borderRadius: 3,
+        background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+      }}>
         <Typography variant="h6" gutterBottom>
           Nearby Words
         </Typography>
@@ -258,7 +295,16 @@ export default function SemanticHopHUD({
       </Paper>
 
       {/* Hint Section */}
-      <Paper elevation={2} sx={{ p: 2, mb: 2, border: '1px solid', borderColor: hintUsed ? 'warning.main' : 'primary.main' }}>
+      <Paper elevation={3} sx={{
+        p: 2.5,
+        mb: 2.5,
+        border: '2px solid',
+        borderColor: hintUsed ? 'warning.main' : 'primary.main',
+        borderRadius: 3,
+        background: hintUsed
+          ? 'linear-gradient(135deg, rgba(255, 192, 16, 0.15) 0%, rgba(2, 52, 48, 0.8) 100%)'
+          : 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+      }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
           <Typography variant="h6" gutterBottom sx={{ mb: 0 }}>
             {hintUsed ? 'Additional Clue' : 'Get a Hint'}
@@ -303,7 +349,11 @@ export default function SemanticHopHUD({
       </Paper>
 
       {/* Related Words Panel (for debugging - shows if words are loaded) */}
-      <Paper elevation={2} sx={{ p: 2 }}>
+      <Paper elevation={3} sx={{
+        p: 2.5,
+        borderRadius: 3,
+        background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+      }}>
         <Typography variant="h6" gutterBottom>
           Words Similar to Target
         </Typography>

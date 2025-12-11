@@ -11,6 +11,7 @@ import WordGraph3D from '@/components/WordGraph3D';
 import WordGraphForceDirected from '@/components/WordGraphForceDirected';
 import WordGraphHNSW from '@/components/WordGraphHNSW';
 import MongoDBLogo from '@/components/MongoDBLogo';
+import BrandShapes from '@/components/BrandShapes';
 
 export default function Home() {
   const [gameCode, setGameCode] = useState(null);
@@ -43,7 +44,7 @@ export default function Home() {
     setToast({ open: true, message, severity });
   };
 
-  const handleCloseToast = (event, reason) => {
+  const handleCloseToast = (_event, reason) => {
     if (reason === 'clickaway') {
       return;
     }
@@ -227,18 +228,6 @@ export default function Home() {
     }
   };
 
-  const fetchPlayers = async () => {
-    // Players are updated via Pusher lobby:state events
-    // This function is kept for compatibility but players are synced via WebSocket
-    if (!gameCode) return;
-    
-    try {
-      // Optionally fetch current state if needed (but Pusher should handle it)
-      // For now, rely on Pusher events which are more real-time
-    } catch (error) {
-      console.error('Error fetching players:', error);
-    }
-  };
 
   const handleCreateGame = async (nickname) => {
     try {
@@ -572,6 +561,7 @@ export default function Home() {
     return (
       <ThemeProvider theme={mongodbTheme}>
         <CssBaseline />
+        <BrandShapes count={12} opacity={0.12} />
         <Lobby
           gameCode={gameCode}
           players={players}
@@ -597,14 +587,16 @@ export default function Home() {
   return (
     <ThemeProvider theme={mongodbTheme}>
       <CssBaseline />
-      <Box sx={{ width: '100vw', height: '100vh', position: 'relative' }}>
+      <BrandShapes count={10} opacity={0.08} />
+      <Box sx={{ width: '100vw', height: '100vh', position: 'relative', zIndex: 1 }}>
         {/* MongoDB Header */}
         <AppBar
           position="absolute"
           sx={{
-            backgroundColor: 'transparent',
-            boxShadow: 'none',
-            borderBottom: '1px solid',
+            background: 'linear-gradient(90deg, rgba(2, 52, 48, 0.95) 0%, rgba(0, 104, 74, 0.85) 100%)',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 4px 16px rgba(0, 237, 100, 0.15)',
+            borderBottom: '2px solid',
             borderColor: 'primary.main',
             zIndex: 1100,
           }}
@@ -612,7 +604,12 @@ export default function Home() {
           <Toolbar sx={{ justifyContent: 'space-between', px: 2 }}>
             <MongoDBLogo width={140} height={35} showText={true} />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ color: 'primary.main', fontWeight: 600 }}>
+              <Box sx={{
+                color: 'primary.main',
+                fontWeight: 700,
+                fontSize: '1.25rem',
+                textShadow: '0 2px 8px rgba(0, 237, 100, 0.3)',
+              }}>
                 Semantic Hop
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
