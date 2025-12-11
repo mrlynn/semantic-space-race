@@ -294,12 +294,30 @@ export default function Home() {
         setRoundPhase('END');
       });
 
-      channel.bind('game:end', (data) => {
+      channel.bind('game:end', async (data) => {
         setGameActive(false);
         const winner = data.finalScores && data.finalScores.length > 0
           ? data.finalScores[0].nickname
           : 'Unknown';
         showToast(`Game Over! Winner: ${winner}`, 'info');
+        
+        // Client-side fallback: Ensure stats are saved
+        // This handles cases where server-side update might have failed
+        try {
+          const response = await fetch('/api/game/update-stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gameCode }),
+          });
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              console.log('✅ Client-side stats update successful');
+            }
+          }
+        } catch (error) {
+          console.error('⚠️ Client-side stats update failed (non-critical):', error);
+        }
       });
 
       channel.bind('lobby:state', (data) => {

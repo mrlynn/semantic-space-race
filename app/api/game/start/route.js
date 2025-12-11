@@ -55,6 +55,14 @@ export async function POST(request) {
       game.currentDefinition = '';
       await game.save();
     }
+    
+    // Always reset player scores when starting a new game
+    // This ensures scores start at 0 for every new game
+    game.getAllPlayers().forEach(player => {
+      player.score = 0;
+      // Update the player in the map to ensure changes persist
+      game.players.set(player.id, player);
+    });
 
     // Load words filtered by topic if not already loaded
     if (game.wordNodes.length === 0) {
