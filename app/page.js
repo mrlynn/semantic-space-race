@@ -243,14 +243,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [timeRemaining, roundPhase]);
 
-  // Load words when game starts
-  useEffect(() => {
-    if (gameActive && words.length === 0) {
-      loadWords();
-    }
-  }, [gameActive, words.length]);
-
-  const loadWords = async () => {
+  const loadWords = useCallback(async () => {
     try {
       // Use gameTopic if available, otherwise default
       const topic = gameTopic || 'general-database';
@@ -290,7 +283,14 @@ export default function Home() {
     } catch (error) {
       console.error('Error loading words:', error);
     }
-  };
+  }, [gameTopic]);
+
+  // Load words when game starts
+  useEffect(() => {
+    if (gameActive && words.length === 0) {
+      loadWords();
+    }
+  }, [gameActive, words.length, loadWords]);
 
 
   const handleCreateGame = async (nickname, topic = 'general-database') => {

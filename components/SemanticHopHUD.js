@@ -168,7 +168,7 @@ export default function SemanticHopHUD({
         }}>
           <BrandShapeDecoration position="top-right" size={100} opacity={0.2} shapeNumber={28} color="yellow" />
           <Typography variant="h6" gutterBottom color="warning.main" sx={{ position: 'relative', zIndex: 1 }}>
-            Time's Up!
+            Time&apos;s Up!
           </Typography>
           <Typography variant="body2" sx={{ mb: 2 }}>
             Waiting for all players to be ready for the next round...
