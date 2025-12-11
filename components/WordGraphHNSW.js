@@ -747,6 +747,193 @@ function CameraController({ currentNodeId, words, nodePositions, controlsRef }) 
   return null;
 }
 
+// Player position tracker component
+function PlayerPositionTracker({ 
+  words, 
+  currentNodeId, 
+  adjustedPositions, 
+  onPositionUpdate 
+}) {
+  const { camera } = useThree();
+  const positionRef = useRef([0, 0, 0]);
+  const updateIntervalRef = useRef(0);
+
+  useFrame(() => {
+    // Update position every 5 frames for performance
+    updateIntervalRef.current = (updateIntervalRef.current + 1) % 5;
+    if (updateIntervalRef.current !== 0) return;
+
+    const cameraPos = camera.position;
+    const newPos = [cameraPos.x, cameraPos.y, cameraPos.z];
+    
+    // Check if position changed significantly (more than 10 units)
+    const dx = newPos[0] - positionRef.current[0];
+    const dy = newPos[1] - positionRef.current[1];
+    const dz = newPos[2] - positionRef.current[2];
+    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    
+    if (distance > 10) {
+      positionRef.current = newPos;
+      
+      // Determine the position to display
+      // Priority: 1) Current node if set, 2) Nearest word if close, 3) Camera position
+      let displayPosition = newPos;
+      let displayWord = null;
+      
+      // First priority: If we have a current node, use that word's position
+      if (currentNodeId) {
+        const currentWord = words.find(w => w.id === currentNodeId);
+        if (currentWord) {
+          const wordPos = adjustedPositions[currentWord.id] || currentWord.position;
+          if (wordPos && Array.isArray(wordPos) && wordPos.length === 3) {
+            displayPosition = wordPos;
+            displayWord = currentWord;
+          }
+        }
+      }
+      
+      // Second priority: If no current node, find nearest word if close enough
+      if (!displayWord) {
+        let nearestWord = null;
+        let nearestDistance = Infinity;
+        
+        words.forEach(word => {
+          const wordPos = adjustedPositions[word.id] || word.position;
+          if (!wordPos || !Array.isArray(wordPos) || wordPos.length !== 3) return;
+          
+          const dx = wordPos[0] - cameraPos.x;
+          const dy = wordPos[1] - cameraPos.y;
+          const dz = wordPos[2] - cameraPos.z;
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          
+          if (dist < nearestDistance) {
+            nearestDistance = dist;
+            nearestWord = word;
+          }
+        });
+        
+        // If we're close to a word (within 500 units), show that word's position
+        if (nearestWord && nearestDistance < 500) {
+          const wordPos = adjustedPositions[nearestWord.id] || nearestWord.position;
+          if (wordPos && Array.isArray(wordPos) && wordPos.length === 3) {
+            displayPosition = wordPos;
+            displayWord = nearestWord;
+          }
+        }
+      }
+      
+      if (onPositionUpdate) {
+        onPositionUpdate({
+          position: displayPosition,
+          word: displayWord,
+          cameraPosition: newPos,
+        });
+      }
+    }
+  });
+
+  return null;
+}
+
+// Navigation controls helper component
+function NavigationHelper({ onControlsReady, controlsRef, cameraRef }) {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    if (!camera || !controlsRef.current) return;
+
+    cameraRef.current = camera;
+
+    const controls = {
+      zoomIn: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          camera.position.add(direction.multiplyScalar(50));
+          controlsRef.current.update();
+        }
+      },
+      zoomOut: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          camera.position.add(direction.multiplyScalar(-50));
+          controlsRef.current.update();
+        }
+      },
+      moveUp: () => {
+        if (controlsRef.current) {
+          camera.position.y += 30;
+          controlsRef.current.target.y += 30;
+          controlsRef.current.update();
+        }
+      },
+      moveDown: () => {
+        if (controlsRef.current) {
+          camera.position.y -= 30;
+          controlsRef.current.target.y -= 30;
+          controlsRef.current.update();
+        }
+      },
+      moveLeft: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          const left = new THREE.Vector3(-direction.z, 0, direction.x).normalize();
+          camera.position.add(left.multiplyScalar(30));
+          controlsRef.current.target.add(left.multiplyScalar(30));
+          controlsRef.current.update();
+        }
+      },
+      moveRight: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          const right = new THREE.Vector3(direction.z, 0, -direction.x).normalize();
+          camera.position.add(right.multiplyScalar(30));
+          controlsRef.current.target.add(right.multiplyScalar(30));
+          controlsRef.current.update();
+        }
+      },
+      moveForward: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          direction.y = 0;
+          direction.normalize();
+          camera.position.add(direction.multiplyScalar(50));
+          controlsRef.current.target.add(direction.multiplyScalar(50));
+          controlsRef.current.update();
+        }
+      },
+      moveBackward: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          direction.y = 0;
+          direction.normalize();
+          camera.position.add(direction.multiplyScalar(-50));
+          controlsRef.current.target.add(direction.multiplyScalar(-50));
+          controlsRef.current.update();
+        }
+      },
+      reset: () => {
+        if (controlsRef.current && cameraRef.current) {
+          camera.position.set(0, 0, 2000);
+          controlsRef.current.target.set(0, 0, 0);
+          controlsRef.current.update();
+        }
+      },
+    };
+
+    if (onControlsReady) {
+      onControlsReady(controls);
+    }
+  }, [camera, controlsRef, cameraRef, onControlsReady]);
+
+  return null;
+}
+
 export default function WordGraphHNSW({
   words = [],
   currentNodeId,
@@ -755,8 +942,10 @@ export default function WordGraphHNSW({
   semanticProximityEnabled = true,
   themeMode = 'dark',
   semanticProximityStrength = 0.4,
+  onCameraControlsReady = null,
 }) {
   const controlsRef = useRef();
+  const cameraRef = useRef();
   const [hubs, setHubs] = useState(new Set());
   const [connections, setConnections] = useState([]);
   const [nodeLayers, setNodeLayers] = useState({});
@@ -764,6 +953,7 @@ export default function WordGraphHNSW({
   const [showPath, setShowPath] = useState(false);
   const [hoveredHub, setHoveredHub] = useState(null);
   const [semanticPositions, setSemanticPositions] = useState({});
+  const [playerPosition, setPlayerPosition] = useState({ position: [0, 0, 0], word: null });
 
   // Filter valid words
   const filteredWords = useMemo(() => {
@@ -1040,19 +1230,20 @@ export default function WordGraphHNSW({
   }, [filteredWords, adjustedPositions]);
 
   return (
-    <Canvas
-      camera={{
-        position: cameraPosition,
-        fov: 75,
-        near: 0.01,
-        far: 100000,
-      }}
-      style={{ 
-        width: '100%', 
-        height: '100%', 
-        background: themeMode === 'dark' ? '#001E2B' : '#F5F5F5' 
-      }}
-    >
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <Canvas
+        camera={{
+          position: cameraPosition,
+          fov: 75,
+          near: 0.01,
+          far: 100000,
+        }}
+        style={{ 
+          width: '100%', 
+          height: '100%', 
+          background: themeMode === 'dark' ? '#001E2B' : '#F5F5F5' 
+        }}
+      >
       <Starfield count={1000} radius={300} /> {/* Further reduced for less visual noise */}
       <ambientLight intensity={themeMode === 'dark' ? 0.35 : 0.5} /> {/* Reduced for better contrast */}
       <pointLight position={[20, 20, 20]} color="#00ED64" intensity={1.2} />
@@ -1072,11 +1263,24 @@ export default function WordGraphHNSW({
         />
       )}
 
+      <NavigationHelper
+        onControlsReady={onCameraControlsReady}
+        controlsRef={controlsRef}
+        cameraRef={cameraRef}
+      />
+
       <CameraController
         currentNodeId={currentNodeId}
         words={filteredWords}
         nodePositions={adjustedPositions}
         controlsRef={controlsRef}
+      />
+
+      <PlayerPositionTracker
+        words={filteredWords}
+        currentNodeId={currentNodeId}
+        adjustedPositions={adjustedPositions}
+        onPositionUpdate={setPlayerPosition}
       />
 
       {/* Render connections with hub highlighting */}
@@ -1126,7 +1330,64 @@ export default function WordGraphHNSW({
         dampingFactor={0.05}
         makeDefault={true}
       />
-    </Canvas>
+      </Canvas>
+      
+      {/* Player Position Display */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 16,
+          left: 16,
+          padding: '12px 16px',
+          backgroundColor: themeMode === 'dark' 
+            ? 'rgba(0, 30, 43, 0.9)' 
+            : 'rgba(255, 255, 255, 0.9)',
+          backdropFilter: 'blur(10px)',
+          borderRadius: '8px',
+          border: `2px solid ${themeMode === 'dark' ? '#00ED64' : '#00684A'}`,
+          boxShadow: themeMode === 'dark' 
+            ? '0 4px 16px rgba(0, 237, 100, 0.3)' 
+            : '0 4px 16px rgba(0, 0, 0, 0.2)',
+          zIndex: 1000,
+          fontFamily: 'monospace',
+          fontSize: '14px',
+          color: themeMode === 'dark' ? '#00ED64' : '#00684A',
+          minWidth: '200px',
+        }}
+      >
+        <div style={{ 
+          marginBottom: '8px', 
+          fontWeight: 'bold',
+          fontSize: '12px',
+          textTransform: 'uppercase',
+          letterSpacing: '1px',
+          opacity: 0.8,
+        }}>
+          Position
+        </div>
+        {playerPosition.word ? (
+          <>
+            <div style={{ 
+              marginBottom: '4px',
+              fontSize: '13px',
+              opacity: 0.9,
+            }}>
+              {playerPosition.word.label}
+            </div>
+            <div style={{ 
+              fontSize: '12px',
+              opacity: 0.7,
+            }}>
+              [{Math.round(playerPosition.position[0])}, {Math.round(playerPosition.position[1])}, {Math.round(playerPosition.position[2])}]
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: '12px' }}>
+            [{Math.round(playerPosition.position[0])}, {Math.round(playerPosition.position[1])}, {Math.round(playerPosition.position[2])}]
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

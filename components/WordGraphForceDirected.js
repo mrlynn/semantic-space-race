@@ -379,14 +379,115 @@ function CameraController({ currentNodeId, words, nodePositions, controlsRef }) 
   return null;
 }
 
+// Navigation controls helper component
+function NavigationHelper({ onControlsReady, controlsRef, cameraRef }) {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    if (!camera || !controlsRef.current) return;
+
+    cameraRef.current = camera;
+
+    const controls = {
+      zoomIn: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          camera.position.add(direction.multiplyScalar(50));
+          controlsRef.current.update();
+        }
+      },
+      zoomOut: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          camera.position.add(direction.multiplyScalar(-50));
+          controlsRef.current.update();
+        }
+      },
+      moveUp: () => {
+        if (controlsRef.current) {
+          camera.position.y += 30;
+          controlsRef.current.target.y += 30;
+          controlsRef.current.update();
+        }
+      },
+      moveDown: () => {
+        if (controlsRef.current) {
+          camera.position.y -= 30;
+          controlsRef.current.target.y -= 30;
+          controlsRef.current.update();
+        }
+      },
+      moveLeft: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          const left = new THREE.Vector3(-direction.z, 0, direction.x).normalize();
+          camera.position.add(left.multiplyScalar(30));
+          controlsRef.current.target.add(left.multiplyScalar(30));
+          controlsRef.current.update();
+        }
+      },
+      moveRight: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          const right = new THREE.Vector3(direction.z, 0, -direction.x).normalize();
+          camera.position.add(right.multiplyScalar(30));
+          controlsRef.current.target.add(right.multiplyScalar(30));
+          controlsRef.current.update();
+        }
+      },
+      moveForward: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          direction.y = 0;
+          direction.normalize();
+          camera.position.add(direction.multiplyScalar(50));
+          controlsRef.current.target.add(direction.multiplyScalar(50));
+          controlsRef.current.update();
+        }
+      },
+      moveBackward: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          direction.y = 0;
+          direction.normalize();
+          camera.position.add(direction.multiplyScalar(-50));
+          controlsRef.current.target.add(direction.multiplyScalar(-50));
+          controlsRef.current.update();
+        }
+      },
+      reset: () => {
+        if (controlsRef.current && cameraRef.current) {
+          camera.position.set(0, 0, 2000);
+          controlsRef.current.target.set(0, 0, 0);
+          controlsRef.current.update();
+        }
+      },
+    };
+
+    if (onControlsReady) {
+      onControlsReady(controls);
+    }
+  }, [camera, controlsRef, cameraRef, onControlsReady]);
+
+  return null;
+}
+
 export default function WordGraphForceDirected({
   words = [],
   currentNodeId,
   relatedWordIds = [],
   onWordClick,
   themeMode = 'dark',
+  onCameraControlsReady = null,
 }) {
   const controlsRef = useRef();
+  const cameraRef = useRef();
   const [nodePositions, setNodePositions] = useState({});
   const [nodeVelocities, setNodeVelocities] = useState({});
 
@@ -532,6 +633,12 @@ export default function WordGraphForceDirected({
         setNodePositions={setNodePositions}
         nodeVelocities={nodeVelocities}
         setNodeVelocities={setNodeVelocities}
+      />
+
+      <NavigationHelper
+        onControlsReady={onCameraControlsReady}
+        controlsRef={controlsRef}
+        cameraRef={cameraRef}
       />
 
       <CameraController

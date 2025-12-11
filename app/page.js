@@ -1136,6 +1136,7 @@ export default function Home() {
                 relatedWordIds={relatedWords.map((w) => w.wordId)}
                 onWordClick={handleWordClick}
                 themeMode={themeMode}
+                onCameraControlsReady={setCameraControls}
               />
             ) : (
               <WordGraphHNSW
@@ -1144,6 +1145,7 @@ export default function Home() {
                 relatedWordIds={relatedWords.map((w) => w.wordId)}
                 onWordClick={handleWordClick}
                 themeMode={themeMode}
+                onCameraControlsReady={setCameraControls}
               />
             )
           ) : (
@@ -1165,7 +1167,7 @@ export default function Home() {
             onMoveForward={cameraControls.moveForward}
             onMoveBackward={cameraControls.moveBackward}
             onReset={cameraControls.reset}
-            position="bottom-left"
+            position="bottom-right"
           />
         )}
 
