@@ -46,3 +46,12 @@ next-env.d.ts
 .idea/
 *.code-workspace
 
+# Large binary files
+*.zip
+*.ZIP
+*.tar.gz
+*.rar
+*.7z
+/public/assets/*.zip
+/public/assets/*.ZIP
+
