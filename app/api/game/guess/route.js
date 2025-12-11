@@ -7,24 +7,50 @@ import connectDB from '@/lib/mongodb';
 import WordNode from '@/models/WordNode';
 import { generateEmbedding } from '@/lib/openai';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30; // Vercel function timeout (max 60s for Pro, 10s for Hobby)
+
 export async function POST(request) {
+  // #region agent log
+  const logData = { location: 'guess/route.js:10', message: 'POST /api/game/guess called', data: {}, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' };
+  console.log('🔵 [GUESS API] POST /api/game/guess called');
   try {
-    const { gameCode, playerId, guess } = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      console.error('🔴 [GUESS API] Failed to parse request body:', parseError);
+      return NextResponse.json(
+        { success: false, error: 'Invalid request body' },
+        { status: 400 }
+      );
+    }
+    const { gameCode, playerId, guess } = body;
+    logData.data = { gameCode, playerId, guess, hasGameCode: !!gameCode, hasPlayerId: !!playerId, hasGuess: !!guess };
+    console.log('🔵 [GUESS API] Request body:', { gameCode, playerId, guess: guess?.substring(0, 20) });
+    fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData) }).catch(() => {});
 
     if (!gameCode || !playerId || !guess) {
+      console.error('🔴 [GUESS API] Missing required parameters:', { gameCode: !!gameCode, playerId: !!playerId, guess: !!guess });
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'guess/route.js:15', message: 'Missing required parameters', data: { gameCode: !!gameCode, playerId: !!playerId, guess: !!guess }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => {});
       return NextResponse.json(
         { success: false, error: 'gameCode, playerId, and guess are required' },
         { status: 400 }
       );
     }
 
+    console.log('🔵 [GUESS API] Getting game from database:', gameCode);
+    fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'guess/route.js:21', message: 'Getting game from database', data: { gameCode }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => {});
     const game = await getGame(gameCode);
     if (!game) {
+      console.error('🔴 [GUESS API] Game not found:', gameCode);
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'guess/route.js:23', message: 'Game not found', data: { gameCode }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => {});
       return NextResponse.json(
         { success: false, error: 'Game not found' },
         { status: 404 }
       );
     }
+    console.log('🟢 [GUESS API] Game found, processing guess:', guess);
 
     if (!game.gameActive || game.roundPhase !== 'SEARCH') {
       return NextResponse.json(
@@ -79,13 +105,22 @@ export async function POST(request) {
     if (!guessedWord) {
       console.log(`Word "${guess}" not found in database, generating embedding for similarity calculation...`);
       try {
+        // Check if OpenAI API key is available
+        if (!process.env.OPENAI_API_KEY) {
+          console.error('🔴 [GUESS API] OPENAI_API_KEY not set in environment');
+          return NextResponse.json({
+            success: false,
+            error: 'OpenAI API key not configured',
+          }, { status: 500 });
+        }
         guessEmbedding = await generateEmbedding(guess);
         console.log(`Generated embedding for "${guess}"`);
       } catch (error) {
-        console.error(`Error generating embedding for "${guess}":`, error);
+        console.error(`🔴 [GUESS API] Error generating embedding for "${guess}":`, error);
+        console.error(`🔴 [GUESS API] Error details:`, { message: error.message, stack: error.stack });
         return NextResponse.json({
           success: false,
-          error: 'Failed to generate embedding for guessed word',
+          error: `Failed to generate embedding: ${error.message}`,
         }, { status: 500 });
       }
     } else {
@@ -93,13 +128,22 @@ export async function POST(request) {
       if (!guessedWord.embedding || !Array.isArray(guessedWord.embedding) || guessedWord.embedding.length === 0) {
         console.log(`Word "${guessedWord.label}" has no embedding, generating one...`);
         try {
+          // Check if OpenAI API key is available
+          if (!process.env.OPENAI_API_KEY) {
+            console.error('🔴 [GUESS API] OPENAI_API_KEY not set in environment');
+            return NextResponse.json({
+              success: false,
+              error: 'OpenAI API key not configured',
+            }, { status: 500 });
+          }
           guessEmbedding = await generateEmbedding(guessedWord.label);
           console.log(`Generated embedding for "${guessedWord.label}"`);
         } catch (error) {
-          console.error(`Error generating embedding for "${guessedWord.label}":`, error);
+          console.error(`🔴 [GUESS API] Error generating embedding for "${guessedWord.label}":`, error);
+          console.error(`🔴 [GUESS API] Error details:`, { message: error.message, stack: error.stack });
           return NextResponse.json({
             success: false,
-            error: 'Failed to generate embedding for word',
+            error: `Failed to generate embedding: ${error.message}`,
           }, { status: 500 });
         }
       } else {
@@ -166,7 +210,7 @@ export async function POST(request) {
       await endRound(game, playerId, player.nickname);
     }
 
-    return NextResponse.json({
+    const responseData = {
       success: true,
       correct: isCorrect,
       similarity,
@@ -177,9 +221,19 @@ export async function POST(request) {
       message: wordInGraph 
         ? undefined 
         : 'Word not in graph, but similarity calculated',
+    };
+    console.log('🟢 [GUESS API] Returning response:', { 
+      success: responseData.success, 
+      similarity: responseData.similarity?.toFixed(4), 
+      wordId: responseData.wordId, 
+      inGraph: responseData.inGraph 
     });
+    fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'guess/route.js:169', message: 'Returning success response', data: responseData, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => {});
+    return NextResponse.json(responseData);
   } catch (error) {
-    console.error('Error processing guess:', error);
+    console.error('🔴 [GUESS API] Error processing guess:', error);
+    console.error('🔴 [GUESS API] Error stack:', error.stack);
+    fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'guess/route.js:181', message: 'Exception in guess handler', data: { errorMessage: error.message, errorStack: error.stack }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => {});
     return NextResponse.json(
       { success: false, error: 'Failed to process guess' },
       { status: 500 }

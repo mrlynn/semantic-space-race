@@ -56,6 +56,15 @@ export default function Lobby({
     ? 'linear-gradient(135deg, rgba(0, 104, 74, 0.4) 0%, rgba(2, 52, 48, 0.95) 50%, rgba(0, 30, 43, 0.95) 100%)'
     : 'linear-gradient(135deg, rgba(0, 237, 100, 0.15) 0%, rgba(255, 255, 255, 0.98) 50%, rgba(245, 245, 245, 0.98) 100%)';
 
+  // Theme-aware brand shape opacities - higher opacity in light mode for visibility
+  const brandShapeOpacity = {
+    veryLow: isDark ? 0.05 : 0.25,
+    low: isDark ? 0.08 : 0.3,
+    mediumLow: isDark ? 0.1 : 0.32,
+    medium: isDark ? 0.12 : 0.35,
+    mediumHigh: isDark ? 0.15 : 0.4,
+  };
+
   const handleCreateGame = async () => {
     if (!nickname.trim()) {
       setError('Please enter a nickname');
@@ -92,8 +101,8 @@ export default function Lobby({
             overflow: 'hidden',
           }}
         >
-          <BrandShapeDecoration position="top-right" size={150} opacity={0.12} shapeNumber={15} />
-          <BrandShapeDecoration position="bottom-left" size={120} opacity={0.08} shapeNumber={22} color="chartreuse" />
+          <BrandShapeDecoration position="top-right" size={150} opacity={brandShapeOpacity.medium} shapeNumber={15} />
+          <BrandShapeDecoration position="bottom-left" size={120} opacity={brandShapeOpacity.low} shapeNumber={22} color="chartreuse" />
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, position: 'relative', zIndex: 1 }}>
             <Box sx={{ flex: 1 }} />
             <Box sx={{ display: 'flex', justifyContent: 'center', flex: 1 }}>
@@ -167,7 +176,7 @@ export default function Lobby({
         sx={{
           p: 5,
           borderRadius: 4,
-          background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.4) 0%, rgba(2, 52, 48, 0.95) 50%, rgba(0, 30, 43, 0.95) 100%)',
+          background: paperGradient,
           backdropFilter: 'blur(20px)',
           border: '2px solid',
           borderColor: 'primary.main',
@@ -176,9 +185,9 @@ export default function Lobby({
           overflow: 'hidden',
         }}
       >
-        <BrandShapeDecoration position="top-left" size={160} opacity={0.1} shapeNumber={8} />
-        <BrandShapeDecoration position="bottom-right" size={140} opacity={0.15} shapeNumber={33} color="purple" />
-        <BrandShapeDecoration position="center" size={200} opacity={0.05} shapeNumber={41} color="blue" />
+        <BrandShapeDecoration position="top-left" size={160} opacity={brandShapeOpacity.mediumLow} shapeNumber={8} />
+        <BrandShapeDecoration position="bottom-right" size={140} opacity={brandShapeOpacity.mediumHigh} shapeNumber={33} color="purple" />
+        <BrandShapeDecoration position="center" size={200} opacity={brandShapeOpacity.veryLow} shapeNumber={41} color="blue" />
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, position: 'relative', zIndex: 1 }}>
           <Box sx={{ flex: 1 }} />
           <Box sx={{ display: 'flex', justifyContent: 'center', flex: 1 }}>

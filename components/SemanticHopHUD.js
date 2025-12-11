@@ -73,11 +73,46 @@ export default function SemanticHopHUD({
         ? 'linear-gradient(135deg, rgba(255, 192, 16, 0.1) 0%, rgba(255, 255, 255, 0.95) 100%)'
         : 'linear-gradient(135deg, rgba(0, 237, 100, 0.1) 0%, rgba(255, 255, 255, 0.95) 100%)');
 
+  // Theme-aware brand shape opacities - higher opacity in light mode for visibility
+  const brandShapeOpacity = {
+    low: isDark ? 0.12 : 0.35,
+    medium: isDark ? 0.15 : 0.4,
+    high: isDark ? 0.18 : 0.45,
+    warning: isDark ? 0.2 : 0.5,
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    console.log('🔵 [HUD] handleSubmit called', { guess: guess.trim(), hasOnHop: !!onHop, isGuessing, roundPhase, onHopType: typeof onHop });
+    if (!onHop) {
+      console.error('🔴 [HUD] onHop is not defined!');
+      return;
+    }
     if (guess.trim() && !isGuessing) {
-      onHop(guess.trim());
-      setGuess('');
+      console.log('🔵 [HUD] Calling onHop with:', guess.trim());
+      try {
+        onHop(guess.trim());
+        setGuess('');
+      } catch (error) {
+        console.error('🔴 [HUD] Error calling onHop:', error);
+      }
+    } else {
+      console.log('🔴 [HUD] handleSubmit blocked:', { hasGuess: !!guess.trim(), isGuessing, roundPhase });
+    }
+  };
+
+  const handleButtonClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('🔵 [HUD] Button clicked directly', { guess: guess.trim(), hasOnHop: !!onHop, isGuessing, roundPhase });
+    if (guess.trim() && !isGuessing && onHop) {
+      console.log('🔵 [HUD] Calling onHop from button click:', guess.trim());
+      try {
+        onHop(guess.trim());
+        setGuess('');
+      } catch (error) {
+        console.error('🔴 [HUD] Error calling onHop from button:', error);
+      }
     }
   };
 
@@ -120,7 +155,7 @@ export default function SemanticHopHUD({
         position: 'relative',
         overflow: 'hidden',
       }}>
-        <BrandShapeDecoration position="top-right" size={100} opacity={0.15} shapeNumber={3} />
+        <BrandShapeDecoration position="top-right" size={100} opacity={brandShapeOpacity.medium} shapeNumber={3} />
         <Typography variant="h6" gutterBottom color="primary" sx={{ position: 'relative', zIndex: 1 }}>
           Game Code: {gameCode}
         </Typography>
@@ -145,7 +180,7 @@ export default function SemanticHopHUD({
         position: 'relative',
         overflow: 'hidden',
       }}>
-        <BrandShapeDecoration position="bottom-left" size={120} opacity={0.12} shapeNumber={12} />
+        <BrandShapeDecoration position="bottom-left" size={120} opacity={brandShapeOpacity.low} shapeNumber={12} />
         <Typography variant="h6" gutterBottom color="primary" sx={{ position: 'relative', zIndex: 1 }}>
           Riddle
         </Typography>
@@ -166,7 +201,7 @@ export default function SemanticHopHUD({
           position: 'relative',
           overflow: 'hidden',
         }}>
-          <BrandShapeDecoration position="top-right" size={100} opacity={0.2} shapeNumber={28} color="yellow" />
+          <BrandShapeDecoration position="top-right" size={100} opacity={brandShapeOpacity.warning} shapeNumber={28} color="yellow" />
           <Typography variant="h6" gutterBottom color="warning.main" sx={{ position: 'relative', zIndex: 1 }}>
             Time&apos;s Up!
           </Typography>
@@ -237,7 +272,8 @@ export default function SemanticHopHUD({
             type="submit" 
             variant="contained" 
             fullWidth
-            disabled={isGuessing || !guess.trim()}
+            disabled={isGuessing || !guess.trim() || !onHop}
+            onClick={handleButtonClick}
             sx={{ position: 'relative' }}
           >
             {isGuessing ? (
@@ -302,7 +338,7 @@ export default function SemanticHopHUD({
           position: 'relative',
           overflow: 'hidden',
         }}>
-          <BrandShapeDecoration position="bottom-right" size={80} opacity={0.12} shapeNumber={36} />
+          <BrandShapeDecoration position="bottom-right" size={80} opacity={brandShapeOpacity.low} shapeNumber={36} />
           <Typography variant="h6" gutterBottom color="primary" sx={{ position: 'relative', zIndex: 1 }}>
             Your Guesses
           </Typography>
@@ -426,7 +462,7 @@ export default function SemanticHopHUD({
         <BrandShapeDecoration
           position="top-left"
           size={90}
-          opacity={0.18}
+          opacity={brandShapeOpacity.high}
           shapeNumber={25}
           color={hintUsed ? 'warning' : 'primary'}
         />

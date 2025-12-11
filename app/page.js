@@ -13,6 +13,7 @@ import WordGraphForceDirected from '@/components/WordGraphForceDirected';
 import WordGraphHNSW from '@/components/WordGraphHNSW';
 import MongoDBLogo from '@/components/MongoDBLogo';
 import BrandShapes from '@/components/BrandShapes';
+import InviteFriends from '@/components/InviteFriends';
 
 export default function Home() {
   // Theme state with localStorage persistence
@@ -393,16 +394,71 @@ export default function Home() {
   };
 
   const handleHop = async (wordLabel) => {
-    if (!gameActive || roundPhase !== 'SEARCH' || isGuessing) return;
+    console.log('🔵 [CLIENT] ========== handleHop CALLED ==========');
+    console.log('🔵 [CLIENT] handleHop params:', { wordLabel, gameActive, roundPhase, isGuessing, gameCode, playerId, hasGameCode: !!gameCode, hasPlayerId: !!playerId });
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:395',message:'handleHop called',data:{wordLabel,gameActive,roundPhase,isGuessing,gameCode,playerId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    if (!gameActive || roundPhase !== 'SEARCH' || isGuessing) {
+      const reason = !gameActive ? 'game not active' : roundPhase !== 'SEARCH' ? `wrong phase: ${roundPhase}` : 'already guessing';
+      console.warn('🔴 [CLIENT] handleHop BLOCKED:', { reason, gameActive, roundPhase, isGuessing, expectedPhase: 'SEARCH' });
+      showToast(`Cannot guess: ${reason}`, 'warning');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:397',message:'handleHop: early return',data:{gameActive,roundPhase,isGuessing},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      return;
+    }
 
     setIsGuessing(true);
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:400',message:'handleHop: making API call',data:{url:'/api/game/guess',gameCode,playerId,guess:wordLabel},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       const response = await fetch('/api/game/guess', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ gameCode, playerId, guess: wordLabel }),
+      }).catch((fetchError) => {
+        console.error('🔴 [CLIENT] Fetch error (network/CORS):', fetchError);
+        throw fetchError;
       });
-      const data = await response.json();
+      console.log('🔵 [CLIENT] Guess API response status:', response.status, response.statusText, 'ok:', response.ok);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:407',message:'handleHop: received response',data:{status:response.status,statusText:response.statusText,ok:response.ok},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      
+      // Check if response is ok before parsing
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('🔴 [CLIENT] Guess API error response:', response.status, errorText);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:412',message:'handleHop: response not ok',data:{status:response.status,errorText},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        try {
+          const errorData = JSON.parse(errorText);
+          showToast(errorData.error || `Server error: ${response.status}`, 'error');
+        } catch {
+          showToast(`Server error: ${response.status} ${response.statusText}`, 'error');
+        }
+        return;
+      }
+      
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error('🔴 [CLIENT] Failed to parse JSON response:', parseError);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:421',message:'handleHop: JSON parse error',data:{error:parseError.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        showToast('Invalid response from server', 'error');
+        return;
+      }
+      
+      console.log('🔵 [CLIENT] Guess API response data:', { success: data.success, similarity: data.similarity, wordId: data.wordId, inGraph: data.inGraph, error: data.error });
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:425',message:'handleHop: parsed response data',data:{success:data.success,correct:data.correct,similarity:data.similarity,wordId:data.wordId,label:data.label,inGraph:data.inGraph,error:data.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       if (data.success) {
         // Add guess to history
         const newGuess = {
@@ -415,27 +471,78 @@ export default function Home() {
         
         // Try to find the word in our loaded words array and hop to it
         // This works even if the word wasn't in game.wordNodes
+        console.log('🔵 [CLIENT] Processing word lookup:', { wordId: data.wordId, label: data.label, inGraph: data.inGraph, wordsArrayLength: words.length, hasPosition: !!data.position });
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:417',message:'handleHop: processing word lookup',data:{wordId:data.wordId,label:data.label,inGraph:data.inGraph,wordsArrayLength:words.length,hasPosition:!!data.position},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         if (data.wordId) {
           // Word exists in database - try to find it in our words array
           const foundWord = words.find(w => w.id === data.wordId);
+          console.log('🔵 [CLIENT] Searched by wordId:', { foundWord: !!foundWord, hasPosition: foundWord?.position ? true : false, wordId: data.wordId });
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:420',message:'handleHop: searched by wordId',data:{foundWord:!!foundWord,hasPosition:foundWord?.position?true:false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
           if (foundWord && foundWord.position) {
-            console.log('🟢 Found guessed word in words array, hopping to:', foundWord.label, foundWord.position);
+            console.log('🟢 [CLIENT] Found guessed word in words array, hopping to:', foundWord.label, foundWord.position);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:423',message:'handleHop: setting currentNodeId and loading neighbors',data:{wordId:data.wordId,label:foundWord.label},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
+            console.log('🔵 [CLIENT] Setting currentNodeId to:', data.wordId);
             setCurrentNodeId(data.wordId);
+            console.log('🔵 [CLIENT] Calling loadNeighbors with:', data.wordId);
             loadNeighbors(data.wordId);
           } else {
             // Word not in our loaded words - try to find by label
             const foundByLabel = words.find(w => w.label.toLowerCase() === (data.label || wordLabel).toLowerCase());
+            console.log('🔵 [CLIENT] Searched by label:', { foundByLabel: !!foundByLabel, hasPosition: foundByLabel?.position ? true : false, searchLabel: data.label || wordLabel });
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:427',message:'handleHop: searched by label',data:{foundByLabel:!!foundByLabel,hasPosition:foundByLabel?.position?true:false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
             if (foundByLabel && foundByLabel.position) {
-              console.log('🟢 Found guessed word by label, hopping to:', foundByLabel.label, foundByLabel.position);
+              console.log('🟢 [CLIENT] Found guessed word by label, hopping to:', foundByLabel.label, foundByLabel.position);
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:430',message:'handleHop: setting currentNodeId by label',data:{wordId:foundByLabel.id,label:foundByLabel.label},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+              // #endregion
+              console.log('🔵 [CLIENT] Setting currentNodeId to:', foundByLabel.id);
               setCurrentNodeId(foundByLabel.id);
+              console.log('🔵 [CLIENT] Calling loadNeighbors with:', foundByLabel.id);
               loadNeighbors(foundByLabel.id);
+            } else if (data.position && Array.isArray(data.position) && data.position.length === 3) {
+              // Fallback: Use position from API response even if word not in words array
+              console.log('🟡 [CLIENT] Word not in words array, but API provided position. Adding word and hopping:', data.label, data.position);
+              // Add the word to the words array temporarily so visualization can use it
+              const newWord = {
+                id: data.wordId,
+                label: data.label || wordLabel,
+                position: data.position,
+                embedding: null, // May not have embedding, but position is enough for visualization
+              };
+              setWords(prev => {
+                // Check if word already exists to avoid duplicates
+                const exists = prev.find(w => w.id === data.wordId);
+                if (exists) return prev;
+                return [...prev, newWord];
+              });
+              console.log('🔵 [CLIENT] Setting currentNodeId to:', data.wordId);
+              setCurrentNodeId(data.wordId);
+              console.log('🔵 [CLIENT] Calling loadNeighbors with:', data.wordId);
+              loadNeighbors(data.wordId);
             } else {
-              console.warn('🔴 Guessed word not found in words array:', data.label || wordLabel, 'wordId:', data.wordId);
+              console.warn('🔴 [CLIENT] Guessed word not found in words array and no position from API:', data.label || wordLabel, 'wordId:', data.wordId);
+              console.warn('🔴 [CLIENT] Words array sample (first 5):', words.slice(0, 5).map(w => ({ id: w.id, label: w.label })));
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:434',message:'handleHop: word not found in words array',data:{label:data.label||wordLabel,wordId:data.wordId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+              // #endregion
             }
           }
         } else if (data.inGraph === false) {
           // Word not in graph - don't try to hop
-          console.log('🟡 Word not in graph, skipping hop');
+          console.log('🟡 [CLIENT] Word not in graph, skipping hop');
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:438',message:'handleHop: word not in graph, skipping hop',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
+        } else {
+          console.warn('🟡 [CLIENT] No wordId and inGraph is not false - unexpected state:', { wordId: data.wordId, inGraph: data.inGraph });
         }
         
         setFeedback({ 
@@ -449,11 +556,24 @@ export default function Home() {
           setBestSimilarity(data.similarity);
         }
       } else {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:451',message:'handleHop: API returned success=false',data:{error:data.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         showToast(data.error || 'Failed to process guess', 'error');
       }
     } catch (error) {
-      console.error('Error hopping:', error);
-      showToast('Error processing guess. Please try again.', 'error');
+      console.error('🔴 [CLIENT] Error hopping:', error);
+      console.error('🔴 [CLIENT] Error details:', { 
+        message: error.message, 
+        stack: error.stack,
+        name: error.name,
+        cause: error.cause 
+      });
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:455',message:'handleHop: exception caught',data:{errorMessage:error.message,errorStack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      const errorMessage = error.message || 'Unknown error occurred';
+      showToast(`Error: ${errorMessage}. Check console for details.`, 'error');
     } finally {
       setIsGuessing(false);
     }
@@ -700,6 +820,7 @@ export default function Home() {
         >
           <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 1, sm: 2 }, minHeight: { xs: 56, sm: 64 } }}>
             <MongoDBLogo width={isMobile ? 100 : 140} height={isMobile ? 25 : 35} showText={true} />
+            <InviteFriends gameCode={gameCode} onCopy={showToast} />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
               <Box sx={{
                 color: 'primary.main',
