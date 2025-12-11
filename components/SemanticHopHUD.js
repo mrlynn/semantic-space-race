@@ -16,8 +16,10 @@ import {
   Chip,
   Drawer,
   IconButton,
+  useTheme,
 } from '@mui/material';
 import { getSimilarityFeedback } from '@/lib/utils';
+import BrandShapeDecoration from './BrandShapeDecoration';
 
 export default function SemanticHopHUD({
   gameCode,
@@ -43,6 +45,9 @@ export default function SemanticHopHUD({
   players = [],
   onMarkReady = null,
 }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  
   const [guess, setGuess] = useState('');
   const [isMarkingReady, setIsMarkingReady] = useState(false);
   
@@ -50,6 +55,23 @@ export default function SemanticHopHUD({
   const isReady = currentPlayer?.ready || false;
   const readyCount = players.filter(p => p.ready).length;
   const totalPlayers = players.length;
+  
+  // Theme-aware gradient backgrounds
+  const paperGradient = isDark
+    ? 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)'
+    : 'linear-gradient(135deg, rgba(0, 237, 100, 0.1) 0%, rgba(255, 255, 255, 0.95) 100%)';
+  
+  const warningGradient = isDark
+    ? 'linear-gradient(135deg, rgba(255, 192, 16, 0.2) 0%, rgba(2, 52, 48, 0.8) 100%)'
+    : 'linear-gradient(135deg, rgba(255, 192, 16, 0.15) 0%, rgba(255, 255, 255, 0.95) 100%)';
+  
+  const hintGradient = isDark
+    ? (hintUsed
+        ? 'linear-gradient(135deg, rgba(255, 192, 16, 0.15) 0%, rgba(2, 52, 48, 0.8) 100%)'
+        : 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)')
+    : (hintUsed
+        ? 'linear-gradient(135deg, rgba(255, 192, 16, 0.1) 0%, rgba(255, 255, 255, 0.95) 100%)'
+        : 'linear-gradient(135deg, rgba(0, 237, 100, 0.1) 0%, rgba(255, 255, 255, 0.95) 100%)');
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -69,6 +91,8 @@ export default function SemanticHopHUD({
         height: '100%',
         overflowY: 'auto',
         p: 3,
+        bgcolor: isDark ? 'rgba(2, 52, 48, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+        backdropFilter: 'blur(10px)',
       }}
     >
       {/* Mobile Header with Close Button */}
@@ -92,9 +116,12 @@ export default function SemanticHopHUD({
         border: '2px solid',
         borderColor: 'primary.main',
         borderRadius: 3,
-        background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+        background: paperGradient,
+        position: 'relative',
+        overflow: 'hidden',
       }}>
-        <Typography variant="h6" gutterBottom color="primary">
+        <BrandShapeDecoration position="top-right" size={100} opacity={0.15} shapeNumber={3} />
+        <Typography variant="h6" gutterBottom color="primary" sx={{ position: 'relative', zIndex: 1 }}>
           Game Code: {gameCode}
         </Typography>
         <Typography variant="body1" gutterBottom>
@@ -114,9 +141,12 @@ export default function SemanticHopHUD({
         border: '2px solid',
         borderColor: 'primary.main',
         borderRadius: 3,
-        background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+        background: paperGradient,
+        position: 'relative',
+        overflow: 'hidden',
       }}>
-        <Typography variant="h6" gutterBottom color="primary">
+        <BrandShapeDecoration position="bottom-left" size={120} opacity={0.12} shapeNumber={12} />
+        <Typography variant="h6" gutterBottom color="primary" sx={{ position: 'relative', zIndex: 1 }}>
           Riddle
         </Typography>
         <Typography variant="body1" sx={{ minHeight: 100 }}>
@@ -132,9 +162,12 @@ export default function SemanticHopHUD({
           border: '2px solid',
           borderColor: 'warning.main',
           borderRadius: 3,
-          background: 'linear-gradient(135deg, rgba(255, 192, 16, 0.2) 0%, rgba(2, 52, 48, 0.8) 100%)',
+          background: warningGradient,
+          position: 'relative',
+          overflow: 'hidden',
         }}>
-          <Typography variant="h6" gutterBottom color="warning.main">
+          <BrandShapeDecoration position="top-right" size={100} opacity={0.2} shapeNumber={28} color="yellow" />
+          <Typography variant="h6" gutterBottom color="warning.main" sx={{ position: 'relative', zIndex: 1 }}>
             Time's Up!
           </Typography>
           <Typography variant="body2" sx={{ mb: 2 }}>
@@ -187,7 +220,7 @@ export default function SemanticHopHUD({
         p: 2.5,
         mb: 2.5,
         borderRadius: 3,
-        background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+        background: paperGradient,
       }}>
         <form onSubmit={handleSubmit}>
           <TextField
@@ -265,9 +298,12 @@ export default function SemanticHopHUD({
           border: '2px solid',
           borderColor: 'primary.main',
           borderRadius: 3,
-          background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+          background: paperGradient,
+          position: 'relative',
+          overflow: 'hidden',
         }}>
-          <Typography variant="h6" gutterBottom color="primary">
+          <BrandShapeDecoration position="bottom-right" size={80} opacity={0.12} shapeNumber={36} />
+          <Typography variant="h6" gutterBottom color="primary" sx={{ position: 'relative', zIndex: 1 }}>
             Your Guesses
           </Typography>
           <List dense>
@@ -324,7 +360,7 @@ export default function SemanticHopHUD({
         p: 2.5,
         mb: 2.5,
         borderRadius: 3,
-        background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+        background: paperGradient,
       }}>
         <Typography variant="body2" gutterBottom>
           Best Similarity: {Math.round(bestSimilarity * 100)}%
@@ -349,7 +385,7 @@ export default function SemanticHopHUD({
         p: 2.5,
         mb: 2.5,
         borderRadius: 3,
-        background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+        background: paperGradient,
       }}>
         <Typography variant="h6" gutterBottom>
           Nearby Words
@@ -382,9 +418,18 @@ export default function SemanticHopHUD({
         borderColor: hintUsed ? 'warning.main' : 'primary.main',
         borderRadius: 3,
         background: hintUsed
-          ? 'linear-gradient(135deg, rgba(255, 192, 16, 0.15) 0%, rgba(2, 52, 48, 0.8) 100%)'
-          : 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+          ? hintGradient
+          : hintGradient,
+        position: 'relative',
+        overflow: 'hidden',
       }}>
+        <BrandShapeDecoration
+          position="top-left"
+          size={90}
+          opacity={0.18}
+          shapeNumber={25}
+          color={hintUsed ? 'warning' : 'primary'}
+        />
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
           <Typography variant="h6" gutterBottom sx={{ mb: 0 }}>
             {hintUsed ? 'Additional Clue' : 'Get a Hint'}
@@ -432,7 +477,7 @@ export default function SemanticHopHUD({
       <Paper elevation={3} sx={{
         p: 2.5,
         borderRadius: 3,
-        background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.8) 100%)',
+        background: paperGradient,
       }}>
         <Typography variant="h6" gutterBottom>
           Words Similar to Target
@@ -468,11 +513,13 @@ export default function SemanticHopHUD({
         onClose={onMobileClose}
         sx={{
           '& .MuiDrawer-paper': {
-            bgcolor: 'rgba(2, 52, 48, 0.98)',
+            bgcolor: isDark ? 'rgba(2, 52, 48, 0.98)' : 'rgba(255, 255, 255, 0.98)',
             backdropFilter: 'blur(10px)',
             borderRight: '3px solid',
             borderColor: 'primary.main',
-            boxShadow: '4px 0 24px rgba(0, 237, 100, 0.3)',
+            boxShadow: isDark 
+              ? '4px 0 24px rgba(0, 237, 100, 0.3)'
+              : '4px 0 24px rgba(0, 0, 0, 0.15)',
           },
         }}
       >
@@ -490,13 +537,15 @@ export default function SemanticHopHUD({
         top: { xs: 56, sm: 64 },
         width: 400,
         height: { xs: 'calc(100vh - 56px)', sm: 'calc(100vh - 64px)' },
-        bgcolor: 'rgba(2, 52, 48, 0.95)',
+        bgcolor: isDark ? 'rgba(2, 52, 48, 0.95)' : 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(10px)',
         overflowY: 'auto',
         zIndex: 1000,
         borderRight: '3px solid',
         borderColor: 'primary.main',
-        boxShadow: '4px 0 24px rgba(0, 237, 100, 0.15)',
+        boxShadow: isDark 
+          ? '4px 0 24px rgba(0, 237, 100, 0.15)'
+          : '4px 0 24px rgba(0, 0, 0, 0.1)',
         display: { xs: 'none', md: 'block' },
       }}
     >

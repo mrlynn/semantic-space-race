@@ -156,7 +156,8 @@ const HNSWNode = React.memo(function HNSWNode({
   isHovered,
   onHubHover,
   showLabel = true,
-  cameraDistance = 0
+  cameraDistance = 0,
+  themeMode = 'dark'
 }) {
   const meshRef = useRef();
   const glowRef = useRef();
@@ -262,20 +263,39 @@ const HNSWNode = React.memo(function HNSWNode({
       {/* Only show labels for important nodes or when close to camera */}
       {showLabel && (
         <Billboard position={[0, baseScale + 6, 0]}>
-          <Text
-            fontSize={(isHub ? 7 : isCurrent ? 6.5 : isRelated ? 6 : 5.5) * labelScale}
-            color={isCurrent ? '#00ED64' : isHub ? '#FFB800' : isRelated ? '#FFB800' : '#FFFFFF'}
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={1.5}
-            outlineColor="#000000"
-            fontWeight="bold"
-            strokeWidth={0.05}
-            strokeColor="#001E2B"
-            maxWidth={200}
-          >
-            {word.label}
-          </Text>
+          <group>
+            {/* Main label - centered */}
+            <Text
+              fontSize={(isHub ? 7 : isCurrent ? 6.5 : isRelated ? 6 : 5.5) * labelScale}
+              color={isCurrent ? '#00ED64' : isHub ? '#FFB800' : isRelated ? '#FFB800' : (themeMode === 'dark' ? '#FFFFFF' : '#001E2B')}
+              anchorX="center"
+              anchorY="middle"
+              outlineWidth={themeMode === 'dark' ? 1.5 : 2}
+              outlineColor={themeMode === 'dark' ? '#000000' : '#FFFFFF'}
+              fontWeight="bold"
+              strokeWidth={themeMode === 'dark' ? 0.05 : 0.1}
+              strokeColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
+              maxWidth={200}
+              position={[0, (isHub ? 1.5 : isCurrent ? 1.4 : isRelated ? 1.3 : 1.2) * labelScale, 0]}
+            >
+              {word.label}
+            </Text>
+            {/* Array address - second row, smaller text, positioned below main label */}
+            <Text
+              fontSize={(isHub ? 2.5 : isCurrent ? 2.3 : isRelated ? 2.2 : 2) * labelScale}
+              color={isCurrent ? '#88FFAA' : isHub ? '#FFD966' : isRelated ? '#FFD966' : (themeMode === 'dark' ? '#888888' : '#333333')}
+              anchorX="center"
+              anchorY="top"
+              outlineWidth={themeMode === 'dark' ? 0.8 : 1.2}
+              outlineColor={themeMode === 'dark' ? '#000000' : '#FFFFFF'}
+              fontWeight="normal"
+              strokeWidth={themeMode === 'dark' ? 0.03 : 0.08}
+              strokeColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
+              position={[0, -(isHub ? 2 : isCurrent ? 1.8 : isRelated ? 1.6 : 1.5) * labelScale, 0]}
+            >
+              [{Math.round(pos[0])}, {Math.round(pos[1])}, {Math.round(pos[2])}]
+            </Text>
+          </group>
         </Billboard>
       )}
     </group>
@@ -292,27 +312,43 @@ const HNSWNode = React.memo(function HNSWNode({
     Math.abs((prevProps.position?.[0] || 0) - (nextProps.position?.[0] || 0)) < 1 &&
     Math.abs((prevProps.position?.[1] || 0) - (nextProps.position?.[1] || 0)) < 1 &&
     Math.abs((prevProps.position?.[2] || 0) - (nextProps.position?.[2] || 0)) < 1 &&
-    Math.abs((prevProps.cameraDistance || 0) - (nextProps.cameraDistance || 0)) < 100
+    Math.abs((    prevProps.cameraDistance || 0) - (nextProps.cameraDistance || 0)) < 100 &&
+    prevProps.themeMode === nextProps.themeMode
   );
 });
 
 // Connection edge component with type-based styling - memoized for performance
-const HNSWEdge = React.memo(function HNSWEdge({ start, end, connectionType, similarity, opacity = 0.3, cameraDistance = 0 }) {
+const HNSWEdge = React.memo(function HNSWEdge({ start, end, connectionType, similarity, opacity = 0.3, cameraDistance = 0, themeMode = 'dark' }) {
   // Further reduced opacity for less visual clutter, especially for local connections
-  const baseOpacity = connectionType === 'local' ? 0.15 : connectionType === 'cross-layer' ? 0.3 : 0.4;
+  // Increase opacity in light mode for better visibility
+  const baseOpacity = themeMode === 'dark' 
+    ? (connectionType === 'local' ? 0.15 : connectionType === 'cross-layer' ? 0.3 : 0.4)
+    : (connectionType === 'local' ? 0.25 : connectionType === 'cross-layer' ? 0.4 : 0.5);
   const lineOpacity = Math.max(0.03, similarity * baseOpacity * opacity);
   
   // Long-range connections (between hubs) are thicker and brighter
   const lineWidth = connectionType === 'long-range' ? 2.5 : connectionType === 'cross-layer' ? 2 : 1;
-  const color = connectionType === 'long-range' 
-    ? '#FFB800' 
-    : connectionType === 'cross-layer' 
-    ? '#00ED64' 
-    : similarity > 0.7 
-    ? '#00ED64' 
-    : similarity > 0.5 
-    ? '#FFB800' 
-    : '#00684A';
+  
+  // Use darker colors in light mode for better contrast
+  const color = themeMode === 'dark'
+    ? (connectionType === 'long-range' 
+        ? '#FFB800' 
+        : connectionType === 'cross-layer' 
+        ? '#00ED64' 
+        : similarity > 0.7 
+        ? '#00ED64' 
+        : similarity > 0.5 
+        ? '#FFB800' 
+        : '#00684A')
+    : (connectionType === 'long-range' 
+        ? '#CC9000' 
+        : connectionType === 'cross-layer' 
+        ? '#00CC52' 
+        : similarity > 0.7 
+        ? '#00CC52' 
+        : similarity > 0.5 
+        ? '#CC9000' 
+        : '#005A3A');
 
   const points = useMemo(() => {
     if (!start || !end || !Array.isArray(start) || !Array.isArray(end)) {
@@ -358,6 +394,7 @@ const HNSWEdge = React.memo(function HNSWEdge({ start, end, connectionType, simi
   // Memo comparison - only re-render if positions or type change significantly
   return (
     prevProps.connectionType === nextProps.connectionType &&
+    prevProps.themeMode === nextProps.themeMode &&
     Math.abs(prevProps.similarity - nextProps.similarity) < 0.05 &&
     Math.abs((prevProps.start?.[0] || 0) - (nextProps.start?.[0] || 0)) < 1 &&
     Math.abs((prevProps.start?.[1] || 0) - (nextProps.start?.[1] || 0)) < 1 &&
@@ -403,7 +440,8 @@ function NodeRenderer({
   nodeLayers, 
   hoveredHub, 
   onWordClick, 
-  onHubHover 
+  onHubHover,
+  themeMode = 'dark',
 }) {
   const { camera } = useThree();
   const [visibleLabels, setVisibleLabels] = useState(new Set());
@@ -488,6 +526,7 @@ function NodeRenderer({
             onHubHover={isHub ? onHubHover : undefined}
             showLabel={showLabel}
             cameraDistance={distToCamera}
+            themeMode={themeMode}
           />
         );
       })}
@@ -496,7 +535,7 @@ function NodeRenderer({
 }
 
 // Connections renderer component with camera-aware culling
-function ConnectionsRenderer({ connections, adjustedPositions, hoveredHub }) {
+function ConnectionsRenderer({ connections, adjustedPositions, hoveredHub, themeMode = 'dark' }) {
   const { camera } = useThree();
 
   return (
@@ -536,6 +575,7 @@ function ConnectionsRenderer({ connections, adjustedPositions, hoveredHub }) {
             similarity={edge.similarity}
             opacity={isHighlighted ? 0.6 : 0.15} // Further reduced base opacity
             cameraDistance={distToCamera}
+            themeMode={themeMode}
           />
         );
       })}
@@ -689,6 +729,7 @@ export default function WordGraphHNSW({
   relatedWordIds = [],
   onWordClick,
   semanticProximityEnabled = true,
+  themeMode = 'dark',
   semanticProximityStrength = 0.4,
 }) {
   const controlsRef = useRef();
@@ -982,15 +1023,19 @@ export default function WordGraphHNSW({
         near: 0.01,
         far: 100000,
       }}
-      style={{ width: '100%', height: '100%', background: '#001E2B' }}
+      style={{ 
+        width: '100%', 
+        height: '100%', 
+        background: themeMode === 'dark' ? '#001E2B' : '#F5F5F5' 
+      }}
     >
       <Starfield count={1000} radius={300} /> {/* Further reduced for less visual noise */}
-      <ambientLight intensity={0.35} /> {/* Reduced for better contrast */}
+      <ambientLight intensity={themeMode === 'dark' ? 0.35 : 0.5} /> {/* Reduced for better contrast */}
       <pointLight position={[20, 20, 20]} color="#00ED64" intensity={1.2} />
       <pointLight position={[-20, -20, -20]} color="#00684A" intensity={0.8} />
       <pointLight position={[0, 30, 0]} color="#FFB800" intensity={1.0} />
-      <directionalLight position={[10, 10, 5]} intensity={0.6} color="#FFFFFF" />
-      <fog attach="fog" args={['#001E2B', 2000, 15000]} /> {/* Adjusted for better depth perception and clarity */}
+      <directionalLight position={[10, 10, 5]} intensity={themeMode === 'dark' ? 0.6 : 0.8} color="#FFFFFF" />
+      <fog attach="fog" args={[themeMode === 'dark' ? '#001E2B' : '#F5F5F5', 2000, 15000]} /> {/* Adjusted for better depth perception and clarity */}
 
       {/* Semantic Proximity Controller - adjusts positions based on semantic similarity */}
       {semanticProximityEnabled && (
@@ -1015,6 +1060,7 @@ export default function WordGraphHNSW({
         connections={connections}
         adjustedPositions={adjustedPositions}
         hoveredHub={hoveredHub}
+        themeMode={themeMode}
       />
 
       {/* Render navigation path */}
@@ -1029,6 +1075,7 @@ export default function WordGraphHNSW({
         currentNodeId={currentNodeId}
         relatedWordIds={relatedWordIds}
         hubs={hubs}
+        themeMode={themeMode}
         nodeLayers={nodeLayers}
         hoveredHub={hoveredHub}
         onWordClick={onWordClick}

@@ -8,7 +8,7 @@ import Starfield from './Starfield';
 import { cosineSimilarity } from '@/lib/utils';
 
 // Force-directed graph node component - memoized for performance
-const GraphNode = React.memo(function GraphNode({ word, isCurrent, isRelated, onClick, position }) {
+const GraphNode = React.memo(function GraphNode({ word, isCurrent, isRelated, onClick, position, themeMode = 'dark' }) {
   const meshRef = useRef();
   const glowRef = useRef();
 
@@ -90,12 +90,14 @@ const GraphNode = React.memo(function GraphNode({ word, isCurrent, isRelated, on
       <Billboard position={[0, baseScale + 3, 0]}>
         <Text
           fontSize={4}
-          color={isCurrent ? '#00ED64' : '#FFFFFF'}
+          color={isCurrent ? '#00ED64' : (themeMode === 'dark' ? '#FFFFFF' : '#001E2B')}
           anchorX="center"
           anchorY="middle"
-          outlineWidth={0.3}
-          outlineColor="#001E2B"
+          outlineWidth={themeMode === 'dark' ? 0.3 : 0.5}
+          outlineColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
           fontWeight="bold"
+          strokeWidth={themeMode === 'dark' ? 0.02 : 0.1}
+          strokeColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
         >
           {word.label}
         </Text>
@@ -360,6 +362,7 @@ export default function WordGraphForceDirected({
   currentNodeId,
   relatedWordIds = [],
   onWordClick,
+  themeMode = 'dark',
 }) {
   const controlsRef = useRef();
   const [nodePositions, setNodePositions] = useState({});
@@ -487,7 +490,11 @@ export default function WordGraphForceDirected({
         near: 0.01,
         far: 100000,
       }}
-      style={{ width: '100%', height: '100%', background: '#001E2B' }}
+      style={{ 
+        width: '100%', 
+        height: '100%', 
+        background: themeMode === 'dark' ? '#001E2B' : '#F5F5F5' 
+      }}
     >
       <Starfield count={2000} radius={300} />
       <ambientLight intensity={0.5} />
@@ -495,7 +502,7 @@ export default function WordGraphForceDirected({
       <pointLight position={[-20, -20, -20]} color="#00684A" intensity={1.0} />
       <pointLight position={[0, 30, 0]} color="#00ED64" intensity={0.8} />
       <directionalLight position={[10, 10, 5]} intensity={0.7} color="#FFFFFF" />
-      <fog attach="fog" args={['#001E2B', 1000, 10000]} />
+      <fog attach="fog" args={[themeMode === 'dark' ? '#001E2B' : '#F5F5F5', 1000, 10000]} />
 
       <ForceDirectedController
         words={filteredWords}
@@ -545,6 +552,7 @@ export default function WordGraphForceDirected({
             isCurrent={isCurrent}
             isRelated={isRelated}
             onClick={() => onWordClick(word)}
+            themeMode={themeMode}
           />
         );
       })}

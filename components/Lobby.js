@@ -19,6 +19,9 @@ import {
   MenuItem,
 } from '@mui/material';
 import MongoDBLogo from './MongoDBLogo';
+import BrandShapeDecoration from './BrandShapeDecoration';
+import ThemeToggle from './ThemeToggle';
+import { useTheme } from '@mui/material';
 
 // Topic definitions matching the seed script
 const TOPICS = {
@@ -37,11 +40,21 @@ export default function Lobby({
   onJoinGame,
   onCreateGame,
   currentTopic = 'general-database',
+  themeMode = 'dark',
+  onThemeToggle = null,
 }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  
   const [joinCode, setJoinCode] = useState('');
   const [nickname, setNickname] = useState('');
   const [selectedTopic, setSelectedTopic] = useState('general-database');
   const [error, setError] = useState('');
+  
+  // Theme-aware gradient
+  const paperGradient = isDark
+    ? 'linear-gradient(135deg, rgba(0, 104, 74, 0.4) 0%, rgba(2, 52, 48, 0.95) 50%, rgba(0, 30, 43, 0.95) 100%)'
+    : 'linear-gradient(135deg, rgba(0, 237, 100, 0.15) 0%, rgba(255, 255, 255, 0.98) 50%, rgba(245, 245, 245, 0.98) 100%)';
 
   const handleCreateGame = async () => {
     if (!nickname.trim()) {
@@ -70,15 +83,27 @@ export default function Lobby({
           sx={{
             p: 5,
             borderRadius: 4,
-            background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.4) 0%, rgba(2, 52, 48, 0.95) 50%, rgba(0, 30, 43, 0.95) 100%)',
+            background: paperGradient,
             backdropFilter: 'blur(20px)',
             border: '2px solid',
             borderColor: 'primary.main',
             boxShadow: '0 8px 32px rgba(0, 237, 100, 0.2)',
+            position: 'relative',
+            overflow: 'hidden',
           }}
         >
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-            <MongoDBLogo width={150} height={38} />
+          <BrandShapeDecoration position="top-right" size={150} opacity={0.12} shapeNumber={15} />
+          <BrandShapeDecoration position="bottom-left" size={120} opacity={0.08} shapeNumber={22} color="chartreuse" />
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, position: 'relative', zIndex: 1 }}>
+            <Box sx={{ flex: 1 }} />
+            <Box sx={{ display: 'flex', justifyContent: 'center', flex: 1 }}>
+              <MongoDBLogo width={150} height={38} />
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', flex: 1 }}>
+              {onThemeToggle && (
+                <ThemeToggle mode={themeMode} onToggle={onThemeToggle} />
+              )}
+            </Box>
           </Box>
           <Typography variant="h4" gutterBottom align="center">
             Game Lobby
@@ -147,10 +172,23 @@ export default function Lobby({
           border: '2px solid',
           borderColor: 'primary.main',
           boxShadow: '0 8px 32px rgba(0, 237, 100, 0.2)',
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-          <MongoDBLogo width={180} height={45} />
+        <BrandShapeDecoration position="top-left" size={160} opacity={0.1} shapeNumber={8} />
+        <BrandShapeDecoration position="bottom-right" size={140} opacity={0.15} shapeNumber={33} color="purple" />
+        <BrandShapeDecoration position="center" size={200} opacity={0.05} shapeNumber={41} color="blue" />
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, position: 'relative', zIndex: 1 }}>
+          <Box sx={{ flex: 1 }} />
+          <Box sx={{ display: 'flex', justifyContent: 'center', flex: 1 }}>
+            <MongoDBLogo width={180} height={45} />
+          </Box>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', flex: 1 }}>
+            {onThemeToggle && (
+              <ThemeToggle mode={themeMode} onToggle={onThemeToggle} />
+            )}
+          </Box>
         </Box>
         <Typography variant="h4" gutterBottom align="center" sx={{ mt: 2 }}>
           Semantic Hop

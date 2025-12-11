@@ -9,7 +9,9 @@ import {
   ListItemText,
   Drawer,
   IconButton,
+  useTheme,
 } from '@mui/material';
+import BrandShapeDecoration from './BrandShapeDecoration';
 
 export default function Leaderboard({
   players = [],
@@ -18,8 +20,16 @@ export default function Leaderboard({
   mobileOpen = false,
   onMobileClose = () => {},
 }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  
   // Sort players by score (descending)
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+  
+  // Theme-aware gradient
+  const paperGradient = isDark
+    ? 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.95) 100%)'
+    : 'linear-gradient(135deg, rgba(0, 237, 100, 0.1) 0%, rgba(255, 255, 255, 0.95) 100%)';
 
   const leaderboardContent = (
     <Box sx={{ width: isMobile ? '85vw' : 280, maxWidth: 320, p: isMobile ? 3 : 0 }}>
@@ -44,13 +54,17 @@ export default function Leaderboard({
           border: '2px solid',
           borderColor: 'primary.main',
           borderRadius: 3,
-          background: 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.95) 100%)',
+          background: paperGradient,
           backdropFilter: 'blur(10px)',
           boxShadow: '0 8px 24px rgba(0, 237, 100, 0.2)',
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
+        <BrandShapeDecoration position="top-left" size={80} opacity={0.15} shapeNumber={7} />
+        <BrandShapeDecoration position="bottom-right" size={60} opacity={0.1} shapeNumber={18} color="chartreuse" />
         {!isMobile && (
-          <Typography variant="h6" gutterBottom color="primary">
+          <Typography variant="h6" gutterBottom color="primary" sx={{ position: 'relative', zIndex: 1 }}>
             Leaderboard
           </Typography>
         )}
@@ -124,7 +138,7 @@ export default function Leaderboard({
         onClose={onMobileClose}
         sx={{
           '& .MuiDrawer-paper': {
-            bgcolor: 'rgba(2, 52, 48, 0.98)',
+            bgcolor: isDark ? 'rgba(2, 52, 48, 0.98)' : 'rgba(255, 255, 255, 0.98)',
             backdropFilter: 'blur(10px)',
             borderLeft: '3px solid',
             borderColor: 'primary.main',

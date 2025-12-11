@@ -6,7 +6,7 @@ import { OrbitControls, Text, Sphere } from '@react-three/drei';
 import * as THREE from 'three';
 import Starfield from './Starfield';
 
-function WordNode({ word, isCurrent, isRelated, onClick }) {
+function WordNode({ word, isCurrent, isRelated, onClick, themeMode = 'dark' }) {
   const meshRef = useRef();
   const glowRef = useRef();
 
@@ -89,11 +89,13 @@ function WordNode({ word, isCurrent, isRelated, onClick }) {
       <Text
         position={[0, baseScale + 3, 0]}
         fontSize={3}
-        color={isCurrent ? '#00ED64' : '#FFFFFF'}
+        color={isCurrent ? '#00ED64' : (themeMode === 'dark' ? '#FFFFFF' : '#001E2B')}
         anchorX="center"
         anchorY="middle"
-        outlineWidth={0.2}
-        outlineColor="#001E2B"
+        outlineWidth={themeMode === 'dark' ? 0.2 : 0.4}
+        outlineColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
+        strokeWidth={themeMode === 'dark' ? 0.02 : 0.08}
+        strokeColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
       >
         {word.label}
       </Text>
@@ -101,7 +103,7 @@ function WordNode({ word, isCurrent, isRelated, onClick }) {
   );
 }
 
-function WordGraph({ words, currentNodeId, relatedWordIds, onWordClick }) {
+function WordGraph({ words, currentNodeId, relatedWordIds, onWordClick, themeMode = 'dark' }) {
   console.log('🟢 WordGraph rendering', words.length, 'words');
   
   if (words.length === 0) {
@@ -124,6 +126,7 @@ function WordGraph({ words, currentNodeId, relatedWordIds, onWordClick }) {
             isCurrent={word.id === currentNodeId}
             isRelated={relatedWordIds?.includes(word.id)}
             onClick={() => onWordClick(word)}
+            themeMode={themeMode}
           />
         );
       })}
@@ -237,6 +240,7 @@ export default function WordGraph3D({
   currentNodeId,
   relatedWordIds = [],
   onWordClick,
+  themeMode = 'dark',
 }) {
   const controlsRef = useRef();
   
@@ -365,7 +369,11 @@ export default function WordGraph3D({
         near: 0.01, // Allow extremely close viewing
         far: 100000, // Very large but finite value (Infinity can cause rendering issues)
       }}
-      style={{ width: '100%', height: '100%', background: '#001E2B' }}
+      style={{ 
+        width: '100%', 
+        height: '100%', 
+        background: themeMode === 'dark' ? '#001E2B' : '#F5F5F5' 
+      }}
     >
       {/* Starfield background */}
       <Starfield count={3000} radius={300} />
@@ -378,7 +386,7 @@ export default function WordGraph3D({
       <directionalLight position={[10, 10, 5]} intensity={0.5} color="#FFFFFF" />
       
       {/* Fog for depth - adjusted for much larger scene, lighter fog for navigation */}
-      <fog attach="fog" args={['#001E2B', 500, 8000]} />
+      <fog attach="fog" args={[themeMode === 'dark' ? '#001E2B' : '#F5F5F5', 500, 8000]} />
       
       <CameraController 
         currentNodeId={currentNodeId} 
@@ -404,6 +412,7 @@ export default function WordGraph3D({
         currentNodeId={currentNodeId}
         relatedWordIds={relatedWordIds}
         onWordClick={onWordClick}
+        themeMode={themeMode}
       />
       <OrbitControls
         ref={controlsRef}

@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ThemeProvider, CssBaseline, Box, AppBar, Toolbar, Snackbar, Alert, Typography, IconButton, Fab, useMediaQuery, useTheme } from '@mui/material';
 import { getPusherClient } from '@/lib/pusherClient';
-import { mongodbTheme } from '@/lib/mongodbTheme';
+import { createMongoDBTheme } from '@/lib/mongodbTheme';
+import ThemeToggle from '@/components/ThemeToggle';
 import Lobby from '@/components/Lobby';
 import SemanticHopHUD from '@/components/SemanticHopHUD';
 import Leaderboard from '@/components/Leaderboard';
@@ -14,8 +15,25 @@ import MongoDBLogo from '@/components/MongoDBLogo';
 import BrandShapes from '@/components/BrandShapes';
 
 export default function Home() {
-  const theme = useTheme();
+  // Theme state with localStorage persistence
+  const [themeMode, setThemeMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('themeMode');
+      return saved === 'light' ? 'light' : 'dark';
+    }
+    return 'dark';
+  });
+
+  const theme = createMongoDBTheme(themeMode);
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  const handleThemeToggle = () => {
+    const newMode = themeMode === 'dark' ? 'light' : 'dark';
+    setThemeMode(newMode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('themeMode', newMode);
+    }
+  };
 
   const [gameCode, setGameCode] = useState(null);
   const [playerId, setPlayerId] = useState(null);
@@ -631,7 +649,7 @@ export default function Home() {
 
   if (!gameCode || !gameActive) {
     return (
-      <ThemeProvider theme={mongodbTheme}>
+      <ThemeProvider theme={theme}>
         <CssBaseline />
         <BrandShapes count={12} opacity={0.12} />
         <Lobby
@@ -642,6 +660,8 @@ export default function Home() {
           onJoinGame={handleJoinGame}
           onCreateGame={handleCreateGame}
           currentTopic={gameTopic}
+          themeMode={themeMode}
+          onThemeToggle={handleThemeToggle}
         />
         <Snackbar
           open={toast.open}
@@ -658,7 +678,7 @@ export default function Home() {
   }
 
   return (
-    <ThemeProvider theme={mongodbTheme}>
+    <ThemeProvider theme={theme}>
       <CssBaseline />
       <BrandShapes count={10} opacity={0.08} />
       <Box sx={{ width: '100vw', height: '100vh', position: 'relative', zIndex: 1 }}>
@@ -666,9 +686,13 @@ export default function Home() {
         <AppBar
           position="absolute"
           sx={{
-            background: 'linear-gradient(90deg, rgba(2, 52, 48, 0.95) 0%, rgba(0, 104, 74, 0.85) 100%)',
+            background: themeMode === 'dark' 
+              ? 'linear-gradient(90deg, rgba(2, 52, 48, 0.95) 0%, rgba(0, 104, 74, 0.85) 100%)'
+              : 'linear-gradient(90deg, rgba(255, 255, 255, 0.95) 0%, rgba(245, 245, 245, 0.95) 100%)',
             backdropFilter: 'blur(10px)',
-            boxShadow: '0 4px 16px rgba(0, 237, 100, 0.15)',
+            boxShadow: themeMode === 'dark' 
+              ? '0 4px 16px rgba(0, 237, 100, 0.15)'
+              : '0 4px 16px rgba(0, 0, 0, 0.1)',
             borderBottom: '2px solid',
             borderColor: 'primary.main',
             zIndex: 1100,
@@ -681,7 +705,7 @@ export default function Home() {
                 color: 'primary.main',
                 fontWeight: 700,
                 fontSize: { xs: '1rem', sm: '1.25rem' },
-                textShadow: '0 2px 8px rgba(0, 237, 100, 0.3)',
+                textShadow: themeMode === 'dark' ? '0 2px 8px rgba(0, 237, 100, 0.3)' : 'none',
                 display: { xs: 'none', sm: 'block' },
               }}>
                 Semantic Hop
@@ -763,6 +787,7 @@ export default function Home() {
                   HNSW
                 </Typography>
               </Box>
+              <ThemeToggle mode={themeMode} onToggle={handleThemeToggle} />
             </Box>
           </Toolbar>
         </AppBar>
@@ -852,6 +877,7 @@ export default function Home() {
                 currentNodeId={currentNodeId}
                 relatedWordIds={relatedWords.map((w) => w.wordId)}
                 onWordClick={handleWordClick}
+                themeMode={themeMode}
               />
             ) : visualizationMode === 'graph' ? (
               <WordGraphForceDirected
@@ -859,6 +885,7 @@ export default function Home() {
                 currentNodeId={currentNodeId}
                 relatedWordIds={relatedWords.map((w) => w.wordId)}
                 onWordClick={handleWordClick}
+                themeMode={themeMode}
               />
             ) : (
               <WordGraphHNSW
@@ -866,6 +893,7 @@ export default function Home() {
                 currentNodeId={currentNodeId}
                 relatedWordIds={relatedWords.map((w) => w.wordId)}
                 onWordClick={handleWordClick}
+                themeMode={themeMode}
               />
             )
           ) : (
