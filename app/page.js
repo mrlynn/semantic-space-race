@@ -1063,6 +1063,7 @@ export default function Home() {
           playerId={playerId}
           players={players}
           onMarkReady={handleMarkReady}
+          currentTarget={currentTarget}
         />
         <Leaderboard
           players={players}

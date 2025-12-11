@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -44,12 +44,79 @@ export default function SemanticHopHUD({
   playerId = null,
   players = [],
   onMarkReady = null,
+  currentTarget = null,
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   
   const [guess, setGuess] = useState('');
   const [isMarkingReady, setIsMarkingReady] = useState(false);
+  const [cheatRevealed, setCheatRevealed] = useState(false);
+  const keySequenceRef = useRef([]);
+  const keyTimeoutRef = useRef(null);
+  
+  // Development mode check
+  const isDevelopment = typeof window !== 'undefined' && (
+    process.env.NODE_ENV === 'development' || 
+    window.location.hostname === 'localhost' || 
+    window.location.hostname === '127.0.0.1'
+  );
+  
+  // Cheat code: Press 'T' three times quickly (within 1 second)
+  useEffect(() => {
+    if (!isDevelopment) return;
+    
+    const handleKeyPress = (e) => {
+      // Only trigger if not typing in an input field
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+      }
+      
+      // Check for 'T' key (case insensitive)
+      if (e.key.toLowerCase() === 't') {
+        const now = Date.now();
+        const sequence = keySequenceRef.current;
+        
+        // Clear old sequence if more than 1 second has passed
+        if (sequence.length > 0 && now - sequence[0] > 1000) {
+          sequence.length = 0;
+        }
+        
+        // Add current key press
+        sequence.push(now);
+        
+        // Keep only last 3 presses
+        if (sequence.length > 3) {
+          sequence.shift();
+        }
+        
+        // Check if we have 3 presses within 1 second
+        if (sequence.length === 3 && (sequence[2] - sequence[0]) <= 1000) {
+          setCheatRevealed(prev => !prev);
+          sequence.length = 0; // Reset sequence
+          console.log('🎮 [CHEAT] Target word reveal toggled');
+        }
+        
+        // Clear timeout
+        if (keyTimeoutRef.current) {
+          clearTimeout(keyTimeoutRef.current);
+        }
+        
+        // Reset sequence after 1 second of no activity
+        keyTimeoutRef.current = setTimeout(() => {
+          sequence.length = 0;
+        }, 1000);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+      if (keyTimeoutRef.current) {
+        clearTimeout(keyTimeoutRef.current);
+      }
+    };
+  }, [isDevelopment]);
   
   const currentPlayer = players.find(p => p.id === playerId);
   const isReady = currentPlayer?.ready || false;
@@ -187,6 +254,28 @@ export default function SemanticHopHUD({
         <Typography variant="body1" sx={{ minHeight: 100 }}>
           {definition || 'Waiting for round to start...'}
         </Typography>
+        {/* Dev cheat: Target word reveal */}
+        {isDevelopment && cheatRevealed && currentTarget && (
+          <Box
+            sx={{
+              mt: 2,
+              p: 1.5,
+              bgcolor: isDark ? 'rgba(255, 192, 16, 0.15)' : 'rgba(255, 192, 16, 0.1)',
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: 'warning.main',
+              position: 'relative',
+              zIndex: 1,
+            }}
+          >
+            <Typography variant="caption" color="warning.main" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+              🎮 DEV MODE - Target Word:
+            </Typography>
+            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 700, color: 'warning.main' }}>
+              {currentTarget.label}
+            </Typography>
+          </Box>
+        )}
       </Paper>
 
       {/* Ready Section - Show when waiting for players to be ready */}
@@ -205,6 +294,35 @@ export default function SemanticHopHUD({
           <Typography variant="h6" gutterBottom color="warning.main" sx={{ position: 'relative', zIndex: 1 }}>
             Time&apos;s Up!
           </Typography>
+
+          {/* Display the target word that was missed */}
+          {currentTarget && (
+            <Box
+              sx={{
+                mb: 2,
+                p: 2,
+                bgcolor: isDark ? 'rgba(0, 237, 100, 0.15)' : 'rgba(0, 237, 100, 0.1)',
+                borderRadius: 2,
+                border: '2px solid',
+                borderColor: 'primary.main',
+                position: 'relative',
+                zIndex: 1,
+              }}
+            >
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                The target word was:
+              </Typography>
+              <Typography variant="h5" color="primary" sx={{ fontWeight: 700, mb: 1 }}>
+                {currentTarget.label}
+              </Typography>
+              {definition && (
+                <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', display: 'block' }}>
+                  {definition}
+                </Typography>
+              )}
+            </Box>
+          )}
+
           <Typography variant="body2" sx={{ mb: 2 }}>
             Waiting for all players to be ready for the next round...
           </Typography>
