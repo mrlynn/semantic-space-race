@@ -2,13 +2,23 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import WordNode from '@/models/WordNode';
 
-export async function GET() {
+export async function GET(request) {
   try {
     await connectDB();
     
-    const words = await WordNode.find({}).select('_id label position embedding').lean();
+    // Get topic from query parameter
+    const { searchParams } = new URL(request.url);
+    const topic = searchParams.get('topic');
     
-    console.log(`Fetched ${words.length} words from database`);
+    // Build query filter
+    const filter = {};
+    if (topic && topic !== 'all') {
+      filter.topic = topic;
+    }
+    
+    const words = await WordNode.find(filter).select('_id label position embedding topic').lean();
+    
+    console.log(`Fetched ${words.length} words from database${topic ? ` (topic: ${topic})` : ' (all topics)'}`);
     
     // Convert _id to string and ensure position is array
     const formattedWords = words.map(word => {

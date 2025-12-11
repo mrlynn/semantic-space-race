@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ThemeProvider, CssBaseline, Box, AppBar, Toolbar, Snackbar, Alert, Typography } from '@mui/material';
+import { ThemeProvider, CssBaseline, Box, AppBar, Toolbar, Snackbar, Alert, Typography, IconButton, Fab, useMediaQuery, useTheme } from '@mui/material';
 import { getPusherClient } from '@/lib/pusherClient';
 import { mongodbTheme } from '@/lib/mongodbTheme';
 import Lobby from '@/components/Lobby';
@@ -14,6 +14,9 @@ import MongoDBLogo from '@/components/MongoDBLogo';
 import BrandShapes from '@/components/BrandShapes';
 
 export default function Home() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   const [gameCode, setGameCode] = useState(null);
   const [playerId, setPlayerId] = useState(null);
   const [isHost, setIsHost] = useState(false);
@@ -35,7 +38,12 @@ export default function Home() {
   const [isGuessing, setIsGuessing] = useState(false);
   const [hintUsed, setHintUsed] = useState(false);
   const [hintText, setHintText] = useState('');
-  const [visualizationMode, setVisualizationMode] = useState('spheres'); // 'spheres', 'graph', or 'hnsw'
+  const [visualizationMode, setVisualizationMode] = useState('hnsw');
+  const [gameTopic, setGameTopic] = useState('general-database'); // 'spheres', 'graph', or 'hnsw'
+
+  // Mobile drawer state
+  const [mobileHudOpen, setMobileHudOpen] = useState(false);
+  const [mobileLeaderboardOpen, setMobileLeaderboardOpen] = useState(false);
 
   // Toast notification state
   const [toast, setToast] = useState({ open: false, message: '', severity: 'info' });
@@ -122,6 +130,30 @@ export default function Home() {
         }
       });
 
+      channel.bind('round:timeout', (data) => {
+        setRoundPhase('WAITING_FOR_READY');
+        setTimeRemaining(null);
+        // Update players with reset ready status
+        if (data.players) {
+          setPlayers(data.players);
+        }
+      });
+
+      channel.bind('player:ready', (data) => {
+        // Update players with ready status
+        if (data.players) {
+          setPlayers(data.players);
+        }
+        // Show notification if all ready
+        if (data.allReady) {
+          showToast('All players ready! Starting next round...', 'success');
+        } else {
+          const readyCount = data.players.filter(p => p.ready).length;
+          const totalCount = data.players.length;
+          showToast(`${data.nickname} is ready (${readyCount}/${totalCount})`, 'info');
+        }
+      });
+
       channel.bind('player:correct-guess', (data) => {
         // Update leaderboard with new scores
         if (data.players) {
@@ -148,6 +180,9 @@ export default function Home() {
         setPlayers(data.players || []);
         setGameActive(data.gameActive || false);
         setRoundNumber(data.roundNumber || 0);
+        if (data.topic) {
+          setGameTopic(data.topic);
+        }
       });
 
       // Handle player joining active game - sync them with current round state
@@ -173,13 +208,22 @@ export default function Home() {
 
     const interval = setInterval(() => {
       setTimeRemaining((prev) => {
-        if (prev <= 1000) return 0;
-        return prev - 1000;
+        const newTime = prev <= 1000 ? 0 : prev - 1000;
+        
+        // Detect when timer reaches 0 during SEARCH phase
+        if (newTime === 0 && prev > 0 && roundPhase === 'SEARCH') {
+          // Show toast notification
+          showToast('Time\'s up! Waiting for all players to be ready...', 'warning');
+          // Change phase to waiting for ready
+          setRoundPhase('WAITING_FOR_READY');
+        }
+        
+        return newTime;
       });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [timeRemaining]);
+  }, [timeRemaining, roundPhase]);
 
   // Load words when game starts
   useEffect(() => {
@@ -190,7 +234,9 @@ export default function Home() {
 
   const loadWords = async () => {
     try {
-      const response = await fetch('/api/words');
+      // Use gameTopic if available, otherwise default
+      const topic = gameTopic || 'general-database';
+      const response = await fetch(`/api/words?topic=${encodeURIComponent(topic)}`);
       const data = await response.json();
       if (data.success) {
         console.log(`Loaded ${data.words.length} words from API`);
@@ -229,18 +275,19 @@ export default function Home() {
   };
 
 
-  const handleCreateGame = async (nickname) => {
+  const handleCreateGame = async (nickname, topic = 'general-database') => {
     try {
       const response = await fetch('/api/game/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname }),
+        body: JSON.stringify({ nickname, topic }),
       });
       const data = await response.json();
       if (data.success) {
         setGameCode(data.gameCode);
         setPlayerId(data.playerId);
         setIsHost(true);
+        setGameTopic(data.topic || topic);
         setPlayers([{ id: data.playerId, nickname, ready: false, score: 0 }]);
       }
     } catch (error) {
@@ -260,6 +307,7 @@ export default function Home() {
         setGameCode(data.gameCode);
         setPlayerId(data.playerId);
         setIsHost(false);
+        setGameTopic(data.topic || 'general-database');
         // Set initial players from API response (Pusher events will update in real-time)
         if (data.players && Array.isArray(data.players)) {
           setPlayers(data.players);
@@ -503,6 +551,30 @@ export default function Home() {
     }
   }, [currentTarget, loadRelatedWords]);
 
+  const handleMarkReady = async () => {
+    if (!gameCode || !playerId) return;
+    
+    try {
+      const response = await fetch('/api/game/ready', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameCode, playerId }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        // Player ready status will be updated via Pusher event
+        if (data.allReady) {
+          showToast('All players ready! Starting next round...', 'success');
+        }
+      } else {
+        showToast('Failed to mark ready. Please try again.', 'error');
+      }
+    } catch (error) {
+      console.error('Error marking ready:', error);
+      showToast('Error marking ready. Please try again.', 'error');
+    }
+  };
+
   const handleGetHint = async () => {
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:400',message:'handleGetHint called',data:{hintUsed,gameActive,roundPhase,gameCode,playerId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
@@ -569,6 +641,7 @@ export default function Home() {
           onStartGame={handleStartGame}
           onJoinGame={handleJoinGame}
           onCreateGame={handleCreateGame}
+          currentTopic={gameTopic}
         />
         <Snackbar
           open={toast.open}
@@ -601,18 +674,19 @@ export default function Home() {
             zIndex: 1100,
           }}
         >
-          <Toolbar sx={{ justifyContent: 'space-between', px: 2 }}>
-            <MongoDBLogo width={140} height={35} showText={true} />
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 1, sm: 2 }, minHeight: { xs: 56, sm: 64 } }}>
+            <MongoDBLogo width={isMobile ? 100 : 140} height={isMobile ? 25 : 35} showText={true} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
               <Box sx={{
                 color: 'primary.main',
                 fontWeight: 700,
-                fontSize: '1.25rem',
+                fontSize: { xs: '1rem', sm: '1.25rem' },
                 textShadow: '0 2px 8px rgba(0, 237, 100, 0.3)',
+                display: { xs: 'none', sm: 'block' },
               }}>
                 Semantic Hop
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1 }}>
                 <Typography 
                   variant="body2" 
                   sx={{ 
@@ -709,15 +783,66 @@ export default function Home() {
           hintUsed={hintUsed}
           hintText={hintText}
           onGetHint={handleGetHint}
+          isMobile={isMobile}
+          mobileOpen={mobileHudOpen}
+          onMobileClose={() => setMobileHudOpen(false)}
+          roundPhase={roundPhase}
+          playerId={playerId}
+          players={players}
+          onMarkReady={handleMarkReady}
         />
-        <Leaderboard players={players} currentPlayerId={playerId} />
+        <Leaderboard
+          players={players}
+          currentPlayerId={playerId}
+          isMobile={isMobile}
+          mobileOpen={mobileLeaderboardOpen}
+          onMobileClose={() => setMobileLeaderboardOpen(false)}
+        />
+        {/* Mobile FABs */}
+        {isMobile && (
+          <>
+            <Fab
+              color="primary"
+              aria-label="menu"
+              onClick={() => setMobileHudOpen(true)}
+              sx={{
+                position: 'fixed',
+                bottom: 16,
+                left: 16,
+                zIndex: 1200,
+                boxShadow: '0 4px 20px rgba(0, 237, 100, 0.4)',
+              }}
+            >
+              <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+              </svg>
+            </Fab>
+            <Fab
+              color="primary"
+              aria-label="leaderboard"
+              onClick={() => setMobileLeaderboardOpen(true)}
+              sx={{
+                position: 'fixed',
+                bottom: 16,
+                right: 16,
+                zIndex: 1200,
+                boxShadow: '0 4px 20px rgba(0, 237, 100, 0.4)',
+              }}
+            >
+              <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M7.5 21H2V9h5.5v12zm7.25-18h-5.5v18h5.5V3zM22 11h-5.5v10H22V11z" />
+              </svg>
+            </Fab>
+          </>
+        )}
+
         <Box
           sx={{
             position: 'absolute',
-            left: 400,
+            left: { xs: 0, md: 400 },
             right: 0,
-            top: 64, // Account for header
-            bottom: 0,
+            top: { xs: 56, sm: 64 }, // Account for header (mobile: 56px, desktop: 64px)
+            bottom: { xs: 80, md: 0 }, // Account for FABs on mobile
           }}
         >
           {words.length > 0 ? (

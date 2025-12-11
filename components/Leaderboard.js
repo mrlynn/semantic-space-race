@@ -7,22 +7,36 @@ import {
   List,
   ListItem,
   ListItemText,
+  Drawer,
+  IconButton,
 } from '@mui/material';
 
-export default function Leaderboard({ players = [], currentPlayerId }) {
+export default function Leaderboard({
+  players = [],
+  currentPlayerId,
+  isMobile = false,
+  mobileOpen = false,
+  onMobileClose = () => {},
+}) {
   // Sort players by score (descending)
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
 
-  return (
-    <Box
-      sx={{
-        position: 'absolute',
-        right: 16,
-        top: 80, // Account for header
-        width: 280,
-        zIndex: 1000,
-      }}
-    >
+  const leaderboardContent = (
+    <Box sx={{ width: isMobile ? '85vw' : 280, maxWidth: 320, p: isMobile ? 3 : 0 }}>
+      {/* Mobile Header with Close Button */}
+      {isMobile && (
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6" color="primary" fontWeight={700}>
+            Leaderboard
+          </Typography>
+          <IconButton onClick={onMobileClose} sx={{ color: 'primary.main' }}>
+            <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
+          </IconButton>
+        </Box>
+      )}
+
       <Paper
         elevation={6}
         sx={{
@@ -35,9 +49,11 @@ export default function Leaderboard({ players = [], currentPlayerId }) {
           boxShadow: '0 8px 24px rgba(0, 237, 100, 0.2)',
         }}
       >
-        <Typography variant="h6" gutterBottom color="primary">
-          Leaderboard
-        </Typography>
+        {!isMobile && (
+          <Typography variant="h6" gutterBottom color="primary">
+            Leaderboard
+          </Typography>
+        )}
         <List dense>
           {sortedPlayers.map((player, index) => (
             <ListItem
@@ -96,6 +112,43 @@ export default function Leaderboard({ players = [], currentPlayerId }) {
           ))}
         </List>
       </Paper>
+    </Box>
+  );
+
+  // Mobile: Drawer, Desktop: Fixed position
+  if (isMobile) {
+    return (
+      <Drawer
+        anchor="right"
+        open={mobileOpen}
+        onClose={onMobileClose}
+        sx={{
+          '& .MuiDrawer-paper': {
+            bgcolor: 'rgba(2, 52, 48, 0.98)',
+            backdropFilter: 'blur(10px)',
+            borderLeft: '3px solid',
+            borderColor: 'primary.main',
+            boxShadow: '-4px 0 24px rgba(0, 237, 100, 0.3)',
+          },
+        }}
+      >
+        {leaderboardContent}
+      </Drawer>
+    );
+  }
+
+  // Desktop: Fixed position
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        right: 16,
+        top: 80,
+        zIndex: 1000,
+        display: { xs: 'none', md: 'block' },
+      }}
+    >
+      {leaderboardContent}
     </Box>
   );
 }

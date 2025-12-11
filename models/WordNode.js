@@ -31,6 +31,11 @@ const WordNodeSchema = new mongoose.Schema({
     type: Number,
     default: 1,
   },
+  topic: {
+    type: String,
+    index: true,
+    default: 'general',
+  },
 }, {
   timestamps: true,
 });

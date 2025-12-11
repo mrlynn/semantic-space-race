@@ -6,7 +6,7 @@ import pusher from '@/lib/pusher';
 
 export async function POST(request) {
   try {
-    const { nickname } = await request.json();
+    const { nickname, topic = 'general-database' } = await request.json();
 
     if (!nickname || typeof nickname !== 'string') {
       return NextResponse.json(
@@ -30,7 +30,7 @@ export async function POST(request) {
     } while (await getGame(gameCode)); // Check if code already exists
 
     const hostId = uuidv4();
-    const game = await createGame(gameCode, hostId);
+    const game = await createGame(gameCode, hostId, topic);
 
     // Add host as first player
     game.addPlayer({
@@ -61,6 +61,7 @@ export async function POST(request) {
         roundNumber: game.roundNumber,
         maxRounds: game.maxRounds,
         gameCode: game.gameCode,
+        topic: game.topic,
       });
       console.log(`🟢 [DEBUG] Broadcasted initial lobby:state event for game ${gameCode}`);
     } catch (pusherError) {
@@ -71,6 +72,7 @@ export async function POST(request) {
       success: true,
       gameCode,
       playerId: hostId,
+      topic: game.topic,
     });
   } catch (error) {
     console.error('Error creating game:', error);

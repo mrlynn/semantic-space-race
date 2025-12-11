@@ -13,8 +13,21 @@ import {
   ListItemText,
   Alert,
   Divider,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import MongoDBLogo from './MongoDBLogo';
+
+// Topic definitions matching the seed script
+const TOPICS = {
+  'architecture-deployment': 'Architecture and Deployment',
+  'mongodb-query': 'MongoDB Query',
+  'aggregation-commands': 'Aggregation and Commands',
+  'data-modeling': 'Data Modeling',
+  'general-database': 'General Database Concepts',
+};
 
 export default function Lobby({
   gameCode,
@@ -23,9 +36,11 @@ export default function Lobby({
   onStartGame,
   onJoinGame,
   onCreateGame,
+  currentTopic = 'general-database',
 }) {
   const [joinCode, setJoinCode] = useState('');
   const [nickname, setNickname] = useState('');
+  const [selectedTopic, setSelectedTopic] = useState('general-database');
   const [error, setError] = useState('');
 
   const handleCreateGame = async () => {
@@ -34,7 +49,7 @@ export default function Lobby({
       return;
     }
     setError('');
-    await onCreateGame(nickname.trim());
+    await onCreateGame(nickname.trim(), selectedTopic);
   };
 
   const handleJoinGame = async () => {
@@ -71,6 +86,12 @@ export default function Lobby({
           <Typography variant="h6" color="primary" gutterBottom align="center" sx={{ fontWeight: 700 }}>
             Game Code: {gameCode}
           </Typography>
+          
+          {currentTopic && (
+            <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 2 }}>
+              Topic: {TOPICS[currentTopic] || currentTopic}
+            </Typography>
+          )}
 
           <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
             Players ({players.length})
@@ -152,6 +173,21 @@ export default function Lobby({
           variant="outlined"
           sx={{ mb: 2 }}
         />
+
+        <FormControl fullWidth sx={{ mb: 2 }}>
+          <InputLabel>Topic List</InputLabel>
+          <Select
+            value={selectedTopic}
+            onChange={(e) => setSelectedTopic(e.target.value)}
+            label="Topic List"
+          >
+            {Object.entries(TOPICS).map(([key, name]) => (
+              <MenuItem key={key} value={key}>
+                {name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
         <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
           <TextField

@@ -23,36 +23,239 @@ import connectDB from '../lib/mongodb.js';
 import WordNode from '../models/WordNode.js';
 import { generateEmbedding } from '../lib/openai.js';
 
-// Expanded word list - tech/computer science related words
-const wordList = [
-  // Database concepts
-  'database', 'query', 'index', 'collection', 'document', 'field', 'schema',
-  'aggregation', 'transaction', 'replica', 'shard', 'cluster', 'node',
-  
-  // Programming concepts
-  'function', 'variable', 'array', 'object', 'class', 'method', 'parameter',
-  'algorithm', 'data structure', 'loop', 'recursion', 'iteration',
-  
-  // Web development
-  'server', 'client', 'request', 'response', 'api', 'endpoint', 'route',
-  'middleware', 'authentication', 'authorization', 'session', 'cookie',
-  
-  // Software engineering
-  'repository', 'commit', 'branch', 'merge', 'deployment', 'testing',
-  'debugging', 'refactoring', 'optimization', 'scalability', 'performance',
-  
-  // Data science
-  'vector', 'embedding', 'similarity', 'clustering', 'classification',
-  'regression', 'neural network', 'machine learning', 'artificial intelligence',
-  
-  // Cloud & infrastructure
-  'container', 'orchestration', 'microservice', 'load balancer', 'cache',
-  'message queue', 'event stream', 'serverless', 'function as a service',
-  
-  // General tech
-  'protocol', 'interface', 'abstraction', 'encapsulation', 'polymorphism',
-  'inheritance', 'composition', 'dependency', 'framework', 'library',
-];
+// Topic definitions
+const TOPICS = {
+  'architecture-deployment': {
+    name: 'Architecture and Deployment',
+    words: [
+      // Replica Sets
+      'replica', 'replica set', 'primary', 'secondary', 'arbiter', 'replication',
+      'replication lag', 'oplog', 'heartbeat', 'election', 'failover',
+      'read preference', 'write concern', 'majority', 'wiredTiger',
+      
+      // Sharding
+      'shard', 'sharding', 'shard key', 'chunk', 'chunk migration', 'balancer',
+      'mongos', 'config server', 'shard cluster', 'sharding strategy',
+      'hashed sharding', 'ranged sharding', 'zone sharding',
+      
+      // Cluster & Nodes
+      'cluster', 'node', 'mongod', 'mongos', 'config server', 'standalone',
+      'cluster topology', 'network partition', 'split brain',
+      
+      // Deployment & Scaling
+      'deployment', 'scalability', 'horizontal scaling', 'vertical scaling',
+      'load balancer', 'connection pooling', 'connection string',
+      'high availability', 'fault tolerance', 'disaster recovery',
+      'backup', 'restore', 'point in time recovery',
+      
+      // Infrastructure
+      'container', 'docker', 'kubernetes', 'orchestration', 'microservice',
+      'serverless', 'function as a service', 'infrastructure as code',
+      'cloud', 'AWS', 'Azure', 'GCP', 'Atlas', 'managed service',
+      'distributed system', 'CAP theorem', 'eventual consistency',
+      
+      // Performance & Monitoring
+      'monitoring', 'profiling', 'slow queries', 'performance tuning',
+      'resource utilization', 'CPU', 'memory', 'disk I/O', 'network latency',
+    ],
+  },
+  'mongodb-query': {
+    name: 'MongoDB Query',
+    words: [
+      // Query Methods
+      'query', 'find', 'findOne', 'findOneAndUpdate', 'findOneAndReplace',
+      'findOneAndDelete', 'countDocuments', 'estimatedDocumentCount',
+      'distinct', 'exists',
+      
+      // Query Operators
+      'filter', 'projection', 'sort', 'limit', 'skip', 'hint',
+      'collation', 'maxTimeMS', 'batchSize',
+      
+      // Comparison Operators
+      '$eq', '$ne', '$gt', '$gte', '$lt', '$lte', '$in', '$nin',
+      'comparison operators', 'equality', 'inequality', 'range query',
+      
+      // Logical Operators
+      '$and', '$or', '$nor', '$not', 'logical operators', 'boolean logic',
+      
+      // Element Operators
+      '$exists', '$type', 'element operators',
+      
+      // Evaluation Operators
+      '$expr', '$jsonSchema', '$mod', '$regex', '$text', '$where',
+      'regex', 'regular expression', 'pattern matching', 'text search',
+      'full text search', 'geospatial query', '$geoWithin', '$geoIntersects',
+      '$near', '$nearSphere',
+      
+      // Array Operators
+      '$all', '$elemMatch', '$size', 'array query', 'array element',
+      
+      // Update Operators
+      '$set', '$unset', '$inc', '$mul', '$min', '$max', '$currentDate',
+      '$rename', '$setOnInsert', 'update operators',
+      
+      // Query Optimization
+      'query plan', 'query optimization', 'index hint', 'explain',
+      'executionStats', 'queryPlanner', 'winning plan', 'rejected plans',
+      'index usage', 'covered query', 'query performance',
+      
+      // Cursor Operations
+      'cursor', 'cursor methods', 'hasNext', 'next', 'forEach', 'toArray',
+      'cursor timeout', 'cursor batch',
+    ],
+  },
+  'aggregation-commands': {
+    name: 'Aggregation and Commands',
+    words: [
+      // Aggregation Basics
+      'aggregation', 'aggregation pipeline', 'aggregate', 'pipeline',
+      'pipeline stage', 'stage order', 'pipeline optimization',
+      
+      // Stage Operators - Input/Output
+      '$match', '$group', '$project', '$sort', '$limit', '$skip',
+      '$count', '$facet', '$bucket', '$bucketAuto', '$out', '$merge',
+      '$unionWith', '$lookup', '$graphLookup',
+      
+      // Stage Operators - Transform
+      '$unwind', '$addFields', '$set', '$replaceRoot', '$replaceWith',
+      '$redact', '$sample', '$densify', '$fill',
+      
+      // Stage Operators - Array
+      '$arrayElemAt', '$arrayToObject', '$concatArrays', '$filter',
+      '$first', '$last', '$in', '$indexOfArray', '$isArray', '$map',
+      '$objectToArray', '$range', '$reduce', '$reverseArray', '$size',
+      '$slice', '$zip',
+      
+      // Accumulators
+      '$sum', '$avg', '$min', '$max', '$first', '$last', '$push',
+      '$addToSet', '$stdDevPop', '$stdDevSamp', 'accumulator',
+      'group accumulator', 'window accumulator',
+      
+      // Expression Operators - Arithmetic
+      '$add', '$subtract', '$multiply', '$divide', '$mod', '$abs',
+      '$ceil', '$floor', '$round', '$sqrt', '$pow', '$exp', '$ln', '$log10',
+      
+      // Expression Operators - String
+      '$concat', '$substr', '$toLower', '$toUpper', '$strLenCP',
+      '$substrCP', '$indexOfBytes', '$indexOfCP', '$split', '$strcasecmp',
+      
+      // Expression Operators - Date
+      '$dateFromString', '$dateToString', '$dayOfMonth', '$dayOfWeek',
+      '$dayOfYear', '$isoDayOfWeek', '$isoWeek', '$isoWeekYear',
+      '$year', '$month', '$week', '$hour', '$minute', '$second', '$millisecond',
+      
+      // Expression Operators - Conditional
+      '$cond', '$ifNull', '$switch', 'conditional expression',
+      
+      // Expression Operators - Type
+      '$type', '$convert', '$toBool', '$toDate', '$toDecimal', '$toDouble',
+      '$toInt', '$toLong', '$toObjectId', '$toString',
+      
+      // Other Commands
+      'mapReduce', 'map reduce', 'distinct', 'group', 'eval',
+      'runCommand', 'command', 'admin command',
+    ],
+  },
+  'data-modeling': {
+    name: 'Data Modeling',
+    words: [
+      // Core Concepts
+      'schema', 'document', 'collection', 'field', 'embedded document',
+      'subdocument', 'nested document', 'array', 'reference',
+      
+      // Relationships
+      'relationship', 'one to one', 'one to many', 'many to many',
+      'parent child', 'tree structure', 'graph structure',
+      
+      // Design Patterns
+      'normalization', 'denormalization', 'schema design', 'data structure',
+      'embedding', 'referencing', 'hybrid approach',
+      
+      // Patterns
+      'polymorphic pattern', 'attribute pattern', 'bucket pattern',
+      'computed pattern', 'document versioning', 'extended reference',
+      'subset pattern', 'tree pattern', 'pre allocation', 'schema versioning',
+      
+      // Data Types
+      'BSON', 'ObjectId', 'string', 'number', 'boolean', 'date', 'null',
+      'array', 'object', 'binary', 'timestamp', 'decimal', 'long',
+      
+      // Validation
+      'validation', 'schema validation', 'validator', 'validation rules',
+      'required fields', 'field types', 'enum', 'min', 'max',
+      
+      // Indexing
+      'index', 'index design', 'single field index', 'compound index',
+      'multikey index', 'text index', 'geospatial index', 'hashed index',
+      'sparse index', 'partial index', 'TTL index', 'unique index',
+      
+      // Performance Considerations
+      'document size', '16MB limit', 'working set', 'memory usage',
+      'query patterns', 'write patterns', 'read patterns',
+    ],
+  },
+  'general-database': {
+    name: 'General Database Concepts',
+    words: [
+      // Core Concepts
+      'database', 'collection', 'document', 'field', 'BSON', 'JSON',
+      
+      // CRUD Operations
+      'CRUD', 'create', 'read', 'update', 'delete', 'insert', 'upsert',
+      'replace', 'remove', 'drop', 'truncate',
+      
+      // Transactions
+      'transaction', 'ACID', 'atomicity', 'consistency', 'isolation',
+      'durability', 'multi document transaction', 'session', 'startTransaction',
+      'commitTransaction', 'abortTransaction',
+      
+      // Indexing
+      'index', 'indexing', 'primary key', '_id', 'unique index',
+      'compound index', 'index performance', 'index maintenance',
+      
+      // Write Operations
+      'write concern', 'w', 'wtimeout', 'j', 'fsync', 'majority',
+      'write acknowledgment', 'write durability',
+      
+      // Read Operations
+      'read preference', 'primary', 'primaryPreferred', 'secondary',
+      'secondaryPreferred', 'nearest', 'read concern', 'local', 'available',
+      'majority', 'linearizable', 'snapshot',
+      
+      // Connection & Drivers
+      'connection', 'connection pool', 'driver', 'client', 'server',
+      'connection string', 'URI', 'authentication', 'authorization',
+      
+      // Bulk Operations
+      'bulk operations', 'bulk write', 'ordered', 'unordered',
+      'insertMany', 'updateMany', 'deleteMany', 'bulkWrite',
+      
+      // Administration
+      'admin', 'user', 'role', 'privilege', 'authentication', 'authorization',
+      'RBAC', 'role based access control', 'audit', 'logging',
+      
+      // Backup & Recovery
+      'backup', 'restore', 'mongodump', 'mongorestore', 'export', 'import',
+      'point in time recovery', 'oplog', 'snapshot',
+      
+      // Performance
+      'performance', 'optimization', 'profiling', 'slow operations',
+      'explain', 'query plan', 'execution time', 'throughput', 'latency',
+      
+      // Security
+      'security', 'encryption', 'TLS', 'SSL', 'authentication', 'authorization',
+      'network security', 'firewall', 'IP whitelist',
+    ],
+  },
+};
+
+// Flatten word list with topics
+const wordList = [];
+Object.entries(TOPICS).forEach(([topicId, topicData]) => {
+  topicData.words.forEach(word => {
+    wordList.push({ word, topic: topicId });
+  });
+});
 
 /**
  * Simple PCA-like projection to 3D
@@ -94,19 +297,26 @@ async function seedWords() {
     let errors = 0;
 
     for (let i = 0; i < wordList.length; i++) {
-      const word = wordList[i];
+      const { word, topic } = wordList[i];
       
       try {
         // Check if word already exists
         const existing = await WordNode.findOne({ label: word });
         if (existing) {
-          console.log(`[${i + 1}/${wordList.length}] "${word}" already exists, skipping...`);
+          // Update existing word with topic if it doesn't have one
+          if (!existing.topic || existing.topic === 'general') {
+            existing.topic = topic;
+            await existing.save();
+            console.log(`[${i + 1}/${wordList.length}] "${word}" updated with topic: ${topic}`);
+          } else {
+            console.log(`[${i + 1}/${wordList.length}] "${word}" already exists with topic: ${existing.topic}, skipping...`);
+          }
           skipped++;
           continue;
         }
 
         // Generate embedding
-        console.log(`[${i + 1}/${wordList.length}] Generating embedding for "${word}"...`);
+        console.log(`[${i + 1}/${wordList.length}] Generating embedding for "${word}" (topic: ${topic})...`);
         const embedding = await generateEmbedding(word);
 
         if (!embedding || embedding.length !== 1536) {
@@ -123,10 +333,11 @@ async function seedWords() {
           label: word,
           position,
           embedding,
+          topic,
         });
 
         await wordNode.save();
-        console.log(`  ✓ Created: "${word}" at position [${position.map(p => p.toFixed(2)).join(', ')}]`);
+        console.log(`  ✓ Created: "${word}" (${topic}) at position [${position.map(p => p.toFixed(2)).join(', ')}]`);
         created++;
 
         // Small delay to avoid rate limiting
@@ -146,6 +357,13 @@ async function seedWords() {
     // Verify the data
     const totalWords = await WordNode.countDocuments();
     console.log(`\nTotal words in database: ${totalWords}`);
+    
+    // Show breakdown by topic
+    console.log('\n=== Words by Topic ===');
+    for (const [topicId, topicData] of Object.entries(TOPICS)) {
+      const count = await WordNode.countDocuments({ topic: topicId });
+      console.log(`${topicData.name}: ${count} words`);
+    }
 
     process.exit(0);
   } catch (error) {

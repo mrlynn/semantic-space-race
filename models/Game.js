@@ -45,7 +45,7 @@ const GameSchema = new mongoose.Schema({
   },
   roundPhase: {
     type: String,
-    enum: ['TUTORIAL', 'TARGET_REVEAL', 'SEARCH', 'END'],
+    enum: ['TUTORIAL', 'TARGET_REVEAL', 'SEARCH', 'END', 'WAITING_FOR_READY'],
     default: 'TUTORIAL',
   },
   phaseEndsAt: Number,
@@ -70,6 +70,10 @@ const GameSchema = new mongoose.Schema({
     position: [Number],
     embedding: [Number],
   }],
+  topic: {
+    type: String,
+    default: 'general',
+  },
 }, {
   timestamps: true,
 });

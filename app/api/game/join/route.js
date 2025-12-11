@@ -52,6 +52,7 @@ export async function POST(request) {
       gameActive: game.gameActive,
       roundNumber: game.roundNumber,
       maxRounds: game.maxRounds,
+      topic: game.topic || 'general-database',
     };
 
     // If game is active, include current round information
@@ -76,6 +77,7 @@ export async function POST(request) {
         roundNumber: game.roundNumber,
         maxRounds: game.maxRounds,
         gameCode: game.gameCode,
+        topic: game.topic || 'general-database',
       });
       console.log(`🟢 [DEBUG] Broadcasted lobby:state event for game ${gameCode} with ${allPlayers.length} players`);
     } catch (pusherError) {

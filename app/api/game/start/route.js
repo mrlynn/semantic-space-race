@@ -56,12 +56,13 @@ export async function POST(request) {
       await game.save();
     }
 
-    // Load all words if not already loaded
+    // Load words filtered by topic if not already loaded
     if (game.wordNodes.length === 0) {
-      console.log('Loading words from database...');
+      console.log(`Loading words from database for topic: ${game.topic || 'general-database'}...`);
       await connectDB();
-      const words = await WordNode.find({}).select('_id label position embedding').lean();
-      console.log(`Loaded ${words.length} words`);
+      const filter = { topic: game.topic || 'general-database' };
+      const words = await WordNode.find(filter).select('_id label position embedding topic').lean();
+      console.log(`Loaded ${words.length} words for topic: ${game.topic || 'general-database'}`);
       game.wordNodes = words.map(word => ({
         id: word._id.toString(),
         label: word.label,

@@ -14,6 +14,8 @@ import {
   ListItemButton,
   ListItemText,
   Chip,
+  Drawer,
+  IconButton,
 } from '@mui/material';
 import { getSimilarityFeedback } from '@/lib/utils';
 
@@ -33,8 +35,21 @@ export default function SemanticHopHUD({
   hintUsed = false,
   hintText = '',
   onGetHint = null,
+  isMobile = false,
+  mobileOpen = false,
+  onMobileClose = () => {},
+  roundPhase = 'SEARCH',
+  playerId = null,
+  players = [],
+  onMarkReady = null,
 }) {
   const [guess, setGuess] = useState('');
+  const [isMarkingReady, setIsMarkingReady] = useState(false);
+  
+  const currentPlayer = players.find(p => p.id === playerId);
+  const isReady = currentPlayer?.ready || false;
+  const readyCount = players.filter(p => p.ready).length;
+  const totalPlayers = players.length;
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -46,24 +61,30 @@ export default function SemanticHopHUD({
 
   const feedbackInfo = feedback ? getSimilarityFeedback(feedback.similarity) : null;
 
-  return (
+  const hudContent = (
     <Box
       sx={{
-        position: 'absolute',
-        left: 0,
-        top: 64, // Account for header
-        width: 400,
-        height: 'calc(100vh - 64px)',
-        bgcolor: 'rgba(2, 52, 48, 0.95)', // Evergreen with transparency
-        backdropFilter: 'blur(10px)',
+        width: isMobile ? '85vw' : 400,
+        maxWidth: 400,
+        height: '100%',
         overflowY: 'auto',
-        zIndex: 1000,
         p: 3,
-        borderRight: '3px solid',
-        borderColor: 'primary.main',
-        boxShadow: '4px 0 24px rgba(0, 237, 100, 0.15)',
       }}
     >
+      {/* Mobile Header with Close Button */}
+      {isMobile && (
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6" color="primary" fontWeight={700}>
+            Game Info
+          </Typography>
+          <IconButton onClick={onMobileClose} sx={{ color: 'primary.main' }}>
+            <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
+          </IconButton>
+        </Box>
+      )}
+
       {/* Game Info */}
       <Paper elevation={3} sx={{
         p: 2.5,
@@ -103,7 +124,65 @@ export default function SemanticHopHUD({
         </Typography>
       </Paper>
 
-      {/* Hop Input */}
+      {/* Ready Section - Show when waiting for players to be ready */}
+      {roundPhase === 'WAITING_FOR_READY' && (
+        <Paper elevation={3} sx={{
+          p: 2.5,
+          mb: 2.5,
+          border: '2px solid',
+          borderColor: 'warning.main',
+          borderRadius: 3,
+          background: 'linear-gradient(135deg, rgba(255, 192, 16, 0.2) 0%, rgba(2, 52, 48, 0.8) 100%)',
+        }}>
+          <Typography variant="h6" gutterBottom color="warning.main">
+            Time's Up!
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Waiting for all players to be ready for the next round...
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Ready: {readyCount}/{totalPlayers} players
+          </Typography>
+          <List dense sx={{ mb: 2 }}>
+            {players.map((player) => (
+              <ListItem key={player.id} disablePadding>
+                <ListItemText
+                  primary={player.nickname}
+                  secondary={player.ready ? '✓ Ready' : 'Waiting...'}
+                  sx={{
+                    color: player.ready ? 'success.main' : 'text.secondary',
+                  }}
+                />
+              </ListItem>
+            ))}
+          </List>
+          <Button
+            variant="contained"
+            fullWidth
+            color={isReady ? 'success' : 'warning'}
+            onClick={async () => {
+              if (onMarkReady && !isMarkingReady) {
+                setIsMarkingReady(true);
+                try {
+                  await onMarkReady();
+                } finally {
+                  setIsMarkingReady(false);
+                }
+              }
+            }}
+            disabled={isReady || isMarkingReady}
+            sx={{
+              py: 1.5,
+              fontWeight: 700,
+            }}
+          >
+            {isReady ? '✓ Ready' : isMarkingReady ? 'Marking Ready...' : 'Mark as Ready'}
+          </Button>
+        </Paper>
+      )}
+
+      {/* Hop Input - Hide when waiting for ready */}
+      {roundPhase !== 'WAITING_FOR_READY' && (
       <Paper elevation={3} sx={{
         p: 2.5,
         mb: 2.5,
@@ -176,6 +255,7 @@ export default function SemanticHopHUD({
           </Box>
         )}
       </Paper>
+      )}
 
       {/* Guess History */}
       {guesses.length > 0 && (
@@ -376,6 +456,51 @@ export default function SemanticHopHUD({
           )}
         </List>
       </Paper>
+    </Box>
+  );
+
+  // Mobile: Drawer, Desktop: Fixed sidebar
+  if (isMobile) {
+    return (
+      <Drawer
+        anchor="left"
+        open={mobileOpen}
+        onClose={onMobileClose}
+        sx={{
+          '& .MuiDrawer-paper': {
+            bgcolor: 'rgba(2, 52, 48, 0.98)',
+            backdropFilter: 'blur(10px)',
+            borderRight: '3px solid',
+            borderColor: 'primary.main',
+            boxShadow: '4px 0 24px rgba(0, 237, 100, 0.3)',
+          },
+        }}
+      >
+        {hudContent}
+      </Drawer>
+    );
+  }
+
+  // Desktop: Fixed sidebar
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        left: 0,
+        top: { xs: 56, sm: 64 },
+        width: 400,
+        height: { xs: 'calc(100vh - 56px)', sm: 'calc(100vh - 64px)' },
+        bgcolor: 'rgba(2, 52, 48, 0.95)',
+        backdropFilter: 'blur(10px)',
+        overflowY: 'auto',
+        zIndex: 1000,
+        borderRight: '3px solid',
+        borderColor: 'primary.main',
+        boxShadow: '4px 0 24px rgba(0, 237, 100, 0.15)',
+        display: { xs: 'none', md: 'block' },
+      }}
+    >
+      {hudContent}
     </Box>
   );
 }
