@@ -899,17 +899,57 @@ export default function Home() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <BrandShapes count={12} opacity={0.12} />
-        <Lobby
-          gameCode={gameCode}
-          players={players}
-          isHost={isHost}
-          onStartGame={handleStartGame}
-          onJoinGame={handleJoinGame}
-          onCreateGame={handleCreateGame}
-          currentTopic={gameTopic}
-          themeMode={themeMode}
-          onThemeToggle={handleThemeToggle}
-        />
+        <Box sx={{ position: 'relative', minHeight: '100vh' }}>
+          <Lobby
+            gameCode={gameCode}
+            players={players}
+            isHost={isHost}
+            onStartGame={handleStartGame}
+            onJoinGame={handleJoinGame}
+            onCreateGame={handleCreateGame}
+            currentTopic={gameTopic}
+            themeMode={themeMode}
+            onThemeToggle={handleThemeToggle}
+          />
+          {/* Historical Leaderboard on Landing Page */}
+          <Box
+            sx={{
+              position: 'absolute',
+              right: { xs: 16, md: 16 },
+              top: { xs: 'auto', md: 80 },
+              bottom: { xs: 16, md: 'auto' },
+              zIndex: 1000,
+            }}
+          >
+            <Leaderboard
+              players={[]}
+              currentPlayerId={null}
+              isMobile={isMobile}
+              mobileOpen={mobileLeaderboardOpen}
+              onMobileClose={() => setMobileLeaderboardOpen(false)}
+              defaultTab={1}
+            />
+          </Box>
+          {/* Mobile FAB for Leaderboard */}
+          {isMobile && (
+            <Fab
+              color="primary"
+              aria-label="leaderboard"
+              onClick={() => setMobileLeaderboardOpen(true)}
+              sx={{
+                position: 'fixed',
+                bottom: 16,
+                right: 16,
+                zIndex: 1200,
+                boxShadow: '0 4px 20px rgba(0, 237, 100, 0.4)',
+              }}
+            >
+              <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M7.5 21H2V9h5.5v12zm7.25-18h-5.5v18h5.5V3zM22 11h-5.5v10H22V11z" />
+              </svg>
+            </Fab>
+          )}
+        </Box>
         <Snackbar
           open={toast.open}
           autoHideDuration={6000}
