@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ThemeProvider, CssBaseline, Box, AppBar, Toolbar, Snackbar, Alert, Typography, IconButton, Fab, useMediaQuery, useTheme } from '@mui/material';
 import { getPusherClient } from '@/lib/pusherClient';
 import { createMongoDBTheme } from '@/lib/mongodbTheme';
@@ -14,6 +14,7 @@ import WordGraphHNSW from '@/components/WordGraphHNSW';
 import MongoDBLogo from '@/components/MongoDBLogo';
 import BrandShapes from '@/components/BrandShapes';
 import InviteFriends from '@/components/InviteFriends';
+import { celebrateCorrectGuess } from '@/lib/celebration';
 
 export default function Home() {
   // Global error handler for production debugging
@@ -89,6 +90,9 @@ export default function Home() {
   // Mobile drawer state
   const [mobileHudOpen, setMobileHudOpen] = useState(false);
   const [mobileLeaderboardOpen, setMobileLeaderboardOpen] = useState(false);
+  
+  // Refs for timeout cleanup
+  const timeoutRefs = useRef({ phaseTransition: null, roundAdvance: null });
 
   // Toast notification state
   const [toast, setToast] = useState({ open: false, message: '', severity: 'info' });
@@ -117,7 +121,13 @@ export default function Home() {
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:62',message:'round:start event received',data:{roundNumber:data.roundNumber,targetId:data.target?.id,targetLabel:data.target?.label,hasTarget:!!data.target,phase:data.phase},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
-        console.log('🔵 [CLIENT] round:start received:', { phase: data.phase, phaseEndsAt: data.phaseEndsAt, roundDuration: data.roundDuration });
+        console.log('🔵 [CLIENT] round:start received:', { phase: data.phase, phaseEndsAt: data.phaseEndsAt, roundDuration: data.roundDuration, roundNumber: data.roundNumber });
+        
+        // Clear any pending fallback timeouts since server handled it
+        if (timeoutRefs.current.roundAdvance) {
+          clearTimeout(timeoutRefs.current.roundAdvance);
+          timeoutRefs.current.roundAdvance = null;
+        }
         setRoundNumber(data.roundNumber);
         setMaxRounds(data.maxRounds);
         setDefinition(data.definition);
@@ -142,13 +152,18 @@ export default function Home() {
         if (data.phase === 'TARGET_REVEAL') {
           const targetRevealDuration = data.phaseEndsAt ? Math.max(0, data.phaseEndsAt - Date.now()) : 3000; // Default 3 seconds
           console.log('🔵 [CLIENT] Scheduling client-side phase transition in', targetRevealDuration, 'ms');
-          setTimeout(() => {
+          // Clear any existing timeout
+          if (timeoutRefs.current.phaseTransition) {
+            clearTimeout(timeoutRefs.current.phaseTransition);
+          }
+          timeoutRefs.current.phaseTransition = setTimeout(() => {
             console.log('🔵 [CLIENT] Client-side phase transition: TARGET_REVEAL -> SEARCH');
             setRoundPhase('SEARCH');
             // Set time remaining to round duration
             if (data.roundDuration) {
               setTimeRemaining(data.roundDuration);
             }
+            timeoutRefs.current.phaseTransition = null;
           }, targetRevealDuration);
         }
         
@@ -181,6 +196,7 @@ export default function Home() {
       });
 
       channel.bind('round:end', (data) => {
+        console.log('🔵 [CLIENT] round:end received:', { roundNumber: data.roundNumber, winnerNickname: data.winnerNickname, maxRounds: maxRounds });
         setRoundPhase('END');
         setTimeRemaining(5000);
         // Update players with latest scores
@@ -190,6 +206,51 @@ export default function Home() {
         // Show winner announcement
         if (data.winnerNickname) {
           showToast(`${data.winnerNickname} won round ${data.roundNumber}! The word was: ${data.targetLabel}`, 'success');
+        }
+        
+        // Client-side fallback: If server doesn't start next round, trigger it client-side
+        // This handles cases where serverless function terminates before setTimeout fires
+        const roundEndDuration = 6000; // 6 seconds (slightly longer than server's 5s to give it a chance)
+        const currentRound = data.roundNumber || roundNumber;
+        const shouldContinue = currentRound < maxRounds;
+        
+        if (shouldContinue) {
+          console.log('🔵 [CLIENT] Scheduling client-side next round fallback in', roundEndDuration, 'ms');
+          // Clear any existing timeout
+          if (timeoutRefs.current.roundAdvance) {
+            clearTimeout(timeoutRefs.current.roundAdvance);
+          }
+          timeoutRefs.current.roundAdvance = setTimeout(async () => {
+            // Check if we're still in END phase (server didn't start next round)
+            console.log('🔵 [CLIENT] Client-side fallback: Checking if next round started...');
+            
+            // Call API to trigger next round
+            try {
+              const response = await fetch('/api/game/advance-round', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gameCode, playerId }),
+              });
+              const result = await response.json();
+              if (result.success) {
+                console.log('🟢 [CLIENT] Client-side fallback: Successfully triggered next round');
+                if (result.gameEnded) {
+                  showToast('Game complete!', 'success');
+                } else {
+                  showToast('Starting next round...', 'info');
+                }
+              } else {
+                console.warn('🟡 [CLIENT] Client-side fallback: Could not trigger next round:', result.error);
+                showToast(`Could not start next round: ${result.error}`, 'warning');
+              }
+            } catch (error) {
+              console.error('🔴 [CLIENT] Client-side fallback: Error triggering next round:', error);
+              showToast('Error starting next round. Please refresh.', 'error');
+            }
+            timeoutRefs.current.roundAdvance = null;
+          }, roundEndDuration);
+        } else {
+          console.log('🔵 [CLIENT] Game complete - all rounds finished');
         }
       });
 
@@ -218,6 +279,9 @@ export default function Home() {
       });
 
       channel.bind('player:correct-guess', (data) => {
+        // Celebrate! Someone got the correct answer
+        celebrateCorrectGuess();
+
         // Update leaderboard with new scores
         if (data.players) {
           setPlayers(data.players);
@@ -504,6 +568,11 @@ export default function Home() {
       fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:425',message:'handleHop: parsed response data',data:{success:data.success,correct:data.correct,similarity:data.similarity,wordId:data.wordId,label:data.label,inGraph:data.inGraph,error:data.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
       if (data.success) {
+        // Celebrate correct guess with confetti and sound!
+        if (data.correct) {
+          celebrateCorrectGuess();
+        }
+
         // Add guess to history
         const newGuess = {
           word: data.label || wordLabel,
