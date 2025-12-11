@@ -14,6 +14,7 @@ import WordGraphHNSW from '@/components/WordGraphHNSW';
 import MongoDBLogo from '@/components/MongoDBLogo';
 import BrandShapes from '@/components/BrandShapes';
 import InviteFriends from '@/components/InviteFriends';
+import NavigationControls from '@/components/NavigationControls';
 import { celebrateCorrectGuess } from '@/lib/celebration';
 
 export default function Home() {
@@ -93,6 +94,9 @@ export default function Home() {
   
   // Refs for timeout cleanup
   const timeoutRefs = useRef({ phaseTransition: null, roundAdvance: null });
+
+  // Camera controls state
+  const [cameraControls, setCameraControls] = useState(null);
 
   // Toast notification state
   const [toast, setToast] = useState({ open: false, message: '', severity: 'info' });
@@ -1122,6 +1126,7 @@ export default function Home() {
                 relatedWordIds={relatedWords.map((w) => w.wordId)}
                 onWordClick={handleWordClick}
                 themeMode={themeMode}
+                onCameraControlsReady={setCameraControls}
               />
             ) : visualizationMode === 'graph' ? (
               <WordGraphForceDirected
@@ -1146,6 +1151,23 @@ export default function Home() {
             </Box>
           )}
         </Box>
+
+        {/* Navigation Controls */}
+        {cameraControls && (
+          <NavigationControls
+            onZoomIn={cameraControls.zoomIn}
+            onZoomOut={cameraControls.zoomOut}
+            onMoveUp={cameraControls.moveUp}
+            onMoveDown={cameraControls.moveDown}
+            onMoveLeft={cameraControls.moveLeft}
+            onMoveRight={cameraControls.moveRight}
+            onMoveForward={cameraControls.moveForward}
+            onMoveBackward={cameraControls.moveBackward}
+            onReset={cameraControls.reset}
+            position="bottom-left"
+          />
+        )}
+
         <Snackbar
           open={toast.open}
           autoHideDuration={6000}

@@ -21,9 +21,18 @@ export async function POST(request) {
       );
     }
 
+    // Handle phase transition timing issue: if we're in TARGET_REVEAL but the time has passed,
+    // automatically transition to SEARCH phase (this handles cases where client-side transition
+    // happened before server-side setTimeout fired)
+    if (game.roundPhase === 'TARGET_REVEAL' && game.phaseEndsAt && Date.now() >= game.phaseEndsAt) {
+      console.log('🔵 [HINT] Auto-transitioning from TARGET_REVEAL to SEARCH (phaseEndsAt passed)');
+      game.startSearchPhase();
+      await game.save();
+    }
+
     if (!game.gameActive || game.roundPhase !== 'SEARCH') {
       return NextResponse.json(
-        { success: false, error: 'Game is not in search phase' },
+        { success: false, error: `Game is not in search phase (current phase: ${game.roundPhase})` },
         { status: 400 }
       );
     }

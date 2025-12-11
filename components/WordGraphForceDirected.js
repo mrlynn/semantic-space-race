@@ -303,7 +303,29 @@ function CameraController({ currentNodeId, words, nodePositions, controlsRef }) 
     if (!currentPos || !Array.isArray(currentPos) || currentPos.length !== 3) return;
 
     const [targetX, targetY, targetZ] = currentPos;
-    const offsetDistance = 80;
+    
+    // Calculate how many words are nearby to determine appropriate camera distance
+    let nearbyWordCount = 0;
+    const clusterDetectionRadius = 500;
+    words.forEach(word => {
+      const wordPos = nodePositions?.[word.id] || word.position;
+      if (!wordPos || !Array.isArray(wordPos) || wordPos.length !== 3) return;
+      
+      const dx = wordPos[0] - targetX;
+      const dy = wordPos[1] - targetY;
+      const dz = wordPos[2] - targetZ;
+      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      
+      if (distance < clusterDetectionRadius && distance > 0.1) {
+        nearbyWordCount++;
+      }
+    });
+    
+    // Increase camera distance based on nearby word density
+    const baseOffsetDistance = 200;
+    const clusterOffset = Math.min(300, nearbyWordCount * 40);
+    const offsetDistance = baseOffsetDistance + clusterOffset;
+    
     const cameraX = targetX;
     const cameraY = targetY + offsetDistance * 0.3;
     const cameraZ = targetZ + offsetDistance;

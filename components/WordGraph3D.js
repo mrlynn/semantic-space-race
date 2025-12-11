@@ -134,6 +134,108 @@ function WordGraph({ words, currentNodeId, relatedWordIds, onWordClick, themeMod
   );
 }
 
+// Navigation controls helper component
+function NavigationHelper({ onControlsReady, controlsRef, cameraRef }) {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    if (!camera || !controlsRef.current) return;
+
+    cameraRef.current = camera;
+
+    const controls = {
+      zoomIn: () => {
+        if (controlsRef.current) {
+          const controls = controlsRef.current;
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          camera.position.add(direction.multiplyScalar(50));
+          controls.update();
+        }
+      },
+      zoomOut: () => {
+        if (controlsRef.current) {
+          const controls = controlsRef.current;
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          camera.position.add(direction.multiplyScalar(-50));
+          controls.update();
+        }
+      },
+      moveUp: () => {
+        if (controlsRef.current) {
+          camera.position.y += 30;
+          controlsRef.current.target.y += 30;
+          controlsRef.current.update();
+        }
+      },
+      moveDown: () => {
+        if (controlsRef.current) {
+          camera.position.y -= 30;
+          controlsRef.current.target.y -= 30;
+          controlsRef.current.update();
+        }
+      },
+      moveLeft: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          const left = new THREE.Vector3(-direction.z, 0, direction.x).normalize();
+          camera.position.add(left.multiplyScalar(30));
+          controlsRef.current.target.add(left.multiplyScalar(30));
+          controlsRef.current.update();
+        }
+      },
+      moveRight: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          const right = new THREE.Vector3(direction.z, 0, -direction.x).normalize();
+          camera.position.add(right.multiplyScalar(30));
+          controlsRef.current.target.add(right.multiplyScalar(30));
+          controlsRef.current.update();
+        }
+      },
+      moveForward: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          direction.y = 0; // Keep movement horizontal
+          direction.normalize();
+          camera.position.add(direction.multiplyScalar(50));
+          controlsRef.current.target.add(direction.multiplyScalar(50));
+          controlsRef.current.update();
+        }
+      },
+      moveBackward: () => {
+        if (controlsRef.current) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          direction.y = 0; // Keep movement horizontal
+          direction.normalize();
+          camera.position.add(direction.multiplyScalar(-50));
+          controlsRef.current.target.add(direction.multiplyScalar(-50));
+          controlsRef.current.update();
+        }
+      },
+      reset: () => {
+        if (controlsRef.current && cameraRef.current) {
+          // Reset to initial camera position
+          camera.position.set(0, 0, 2000);
+          controlsRef.current.target.set(0, 0, 0);
+          controlsRef.current.update();
+        }
+      },
+    };
+
+    if (onControlsReady) {
+      onControlsReady(controls);
+    }
+  }, [camera, controlsRef, cameraRef, onControlsReady]);
+
+  return null;
+}
+
 // Camera controller component to handle hopping
 function CameraController({ currentNodeId, words, controlsRef }) {
   const { camera } = useThree();
@@ -175,7 +277,28 @@ function CameraController({ currentNodeId, words, controlsRef }) {
 
     // Calculate camera position - offset from the word to view it nicely
     // Position camera slightly above and behind the word
-    const offsetDistance = 80; // Good distance for viewing larger nodes
+    
+    // Calculate how many words are nearby to determine appropriate camera distance
+    let nearbyWordCount = 0;
+    const clusterDetectionRadius = 500;
+    words.forEach(word => {
+      if (!word.position || !Array.isArray(word.position) || word.position.length !== 3) return;
+      
+      const dx = word.position[0] - targetX;
+      const dy = word.position[1] - targetY;
+      const dz = word.position[2] - targetZ;
+      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      
+      if (distance < clusterDetectionRadius && distance > 0.1) {
+        nearbyWordCount++;
+      }
+    });
+    
+    // Increase camera distance based on nearby word density
+    const baseOffsetDistance = 200;
+    const clusterOffset = Math.min(300, nearbyWordCount * 40);
+    const offsetDistance = baseOffsetDistance + clusterOffset;
+    
     const cameraX = targetX;
     const cameraY = targetY + offsetDistance * 0.3; // Slightly above
     const cameraZ = targetZ + offsetDistance; // Behind the word
@@ -241,8 +364,10 @@ export default function WordGraph3D({
   relatedWordIds = [],
   onWordClick,
   themeMode = 'dark',
+  onCameraControlsReady = null,
 }) {
   const controlsRef = useRef();
+  const cameraRef = useRef();
   
   console.log('🔵 WordGraph3D rendered with', words.length, 'words');
   
@@ -387,9 +512,15 @@ export default function WordGraph3D({
       
       {/* Fog for depth - adjusted for much larger scene, lighter fog for navigation */}
       <fog attach="fog" args={[themeMode === 'dark' ? '#001E2B' : '#F5F5F5', 500, 8000]} />
-      
-      <CameraController 
-        currentNodeId={currentNodeId} 
+
+      <NavigationHelper
+        onControlsReady={onCameraControlsReady}
+        controlsRef={controlsRef}
+        cameraRef={cameraRef}
+      />
+
+      <CameraController
+        currentNodeId={currentNodeId}
         words={filteredWords}
         controlsRef={controlsRef}
       />
