@@ -52,9 +52,61 @@ export async function POST(request) {
     }
     console.log('🟢 [GUESS API] Game found, processing guess:', guess);
 
-    if (!game.gameActive || game.roundPhase !== 'SEARCH') {
+    // Check if game is active and in search phase
+    // If in TARGET_REVEAL but enough time has passed, auto-transition to SEARCH
+    if (!game.gameActive) {
       return NextResponse.json(
-        { success: false, error: 'Game is not in search phase' },
+        { success: false, error: 'Game is not active' },
+        { status: 400 }
+      );
+    }
+    
+    if (game.roundPhase === 'TARGET_REVEAL') {
+      // Check if target reveal duration has passed
+      const targetRevealDuration = game.targetRevealDuration || 3000; // Default 3 seconds
+      let shouldTransition = false;
+      
+      if (game.phaseEndsAt) {
+        // phaseEndsAt is when TARGET_REVEAL phase should end
+        // If current time is past phaseEndsAt, transition to SEARCH
+        shouldTransition = Date.now() >= game.phaseEndsAt;
+        console.log('🔵 [GUESS API] Checking phase transition:', {
+          phaseEndsAt: game.phaseEndsAt,
+          now: Date.now(),
+          timeRemaining: game.phaseEndsAt - Date.now(),
+          shouldTransition
+        });
+      } else {
+        // No phaseEndsAt set - check if round started recently
+        // If round started more than targetRevealDuration ago, allow transition
+        // We'll be lenient and allow it if we can't determine the exact time
+        shouldTransition = true;
+        console.log('🟡 [GUESS API] No phaseEndsAt set, allowing transition');
+      }
+      
+      if (shouldTransition) {
+        // Auto-transition to SEARCH phase
+        console.log('🟡 [GUESS API] Auto-transitioning from TARGET_REVEAL to SEARCH (server-side timeout may have failed)');
+        game.startSearchPhase();
+        await game.save();
+        // Emit phase change event
+        await pusher.trigger(`game-${game.gameCode}`, 'round:phase-change', {
+          phase: game.roundPhase,
+          phaseEndsAt: game.phaseEndsAt,
+          roundDuration: game.roundDuration,
+        });
+      } else {
+        const timeRemaining = Math.ceil((game.phaseEndsAt - Date.now()) / 1000);
+        return NextResponse.json(
+          { success: false, error: `Game is still in target reveal phase (${timeRemaining}s remaining)` },
+          { status: 400 }
+        );
+      }
+    }
+    
+    if (game.roundPhase !== 'SEARCH') {
+      return NextResponse.json(
+        { success: false, error: `Game is not in search phase (current phase: ${game.roundPhase})` },
         { status: 400 }
       );
     }
