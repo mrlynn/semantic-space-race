@@ -139,9 +139,25 @@ export default function Home() {
       });
 
       channel.bind('lobby:state', (data) => {
+        console.log('🟢 [DEBUG] Received lobby:state event:', { 
+          playerCount: data.players?.length || 0, 
+          players: data.players,
+          gameActive: data.gameActive 
+        });
         setPlayers(data.players || []);
         setGameActive(data.gameActive || false);
         setRoundNumber(data.roundNumber || 0);
+      });
+
+      // Handle player joining active game - sync them with current round state
+      channel.bind('player:joined-active-game', (data) => {
+        console.log('🟢 [DEBUG] Player joined active game:', data.nickname);
+        // Update players list
+        if (data.players) {
+          setPlayers(data.players);
+        }
+        // This event is mainly for other players to see the new player
+        // The joining player gets state from the API response
       });
 
       return () => {
@@ -212,8 +228,16 @@ export default function Home() {
   };
 
   const fetchPlayers = async () => {
-    // This would typically come from WebSocket updates
-    // For now, we'll rely on WebSocket events
+    // Players are updated via Pusher lobby:state events
+    // This function is kept for compatibility but players are synced via WebSocket
+    if (!gameCode) return;
+    
+    try {
+      // Optionally fetch current state if needed (but Pusher should handle it)
+      // For now, rely on Pusher events which are more real-time
+    } catch (error) {
+      console.error('Error fetching players:', error);
+    }
   };
 
   const handleCreateGame = async (nickname) => {
@@ -247,8 +271,42 @@ export default function Home() {
         setGameCode(data.gameCode);
         setPlayerId(data.playerId);
         setIsHost(false);
-        // Fetch current players
-        fetchPlayers();
+        // Set initial players from API response (Pusher events will update in real-time)
+        if (data.players && Array.isArray(data.players)) {
+          setPlayers(data.players);
+        }
+        
+        // If joining an active game, sync with current game state
+        if (data.gameActive) {
+          console.log('🟢 [DEBUG] Joining active game, syncing state:', {
+            roundNumber: data.roundNumber,
+            roundPhase: data.roundPhase,
+            hasTarget: !!data.target,
+            hasDefinition: !!data.definition,
+          });
+          
+          setGameActive(true);
+          setRoundNumber(data.roundNumber || 0);
+          setMaxRounds(data.maxRounds || 5);
+          setRoundPhase(data.roundPhase || 'SEARCH');
+          
+          if (data.definition) {
+            setDefinition(data.definition);
+          }
+          
+          if (data.target) {
+            setCurrentTarget(data.target);
+          }
+          
+          if (data.timeRemaining !== undefined) {
+            setTimeRemaining(data.timeRemaining);
+          }
+          
+          // Load words if game is active
+          if (data.gameActive) {
+            loadWords();
+          }
+        }
       } else {
         showToast('Failed to join game: ' + data.error, 'error');
       }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createGame, getGame } from '@/lib/gameStateDB';
 import { generateGameCode } from '@/lib/utils';
 import { v4 as uuidv4 } from 'uuid';
+import pusher from '@/lib/pusher';
 
 export async function POST(request) {
   try {
@@ -41,6 +42,30 @@ export async function POST(request) {
 
     // Save to database
     await game.save();
+
+    // Get all players
+    const allPlayers = game.getAllPlayers().map(p => ({
+      id: p.id,
+      nickname: p.nickname,
+      ready: p.ready || false,
+      score: p.score || 0,
+    }));
+
+    console.log(`🔵 [DEBUG] Game created: ${gameCode} by ${nickname} (${hostId}). Players: ${allPlayers.length}`);
+
+    // Broadcast initial lobby state
+    try {
+      await pusher.trigger(`game-${gameCode}`, 'lobby:state', {
+        players: allPlayers,
+        gameActive: game.gameActive,
+        roundNumber: game.roundNumber,
+        maxRounds: game.maxRounds,
+        gameCode: game.gameCode,
+      });
+      console.log(`🟢 [DEBUG] Broadcasted initial lobby:state event for game ${gameCode}`);
+    } catch (pusherError) {
+      console.error('🔴 [DEBUG] Failed to broadcast initial lobby:state event:', pusherError);
+    }
 
     return NextResponse.json({
       success: true,
