@@ -3,6 +3,7 @@ import { getGame } from '@/lib/gameStateDB';
 import connectDB from '@/lib/mongodb';
 import WordNode from '@/models/WordNode';
 import { startNewRound } from '@/lib/gameLogic';
+import pusher from '@/lib/pusher';
 
 export async function POST(request) {
   try {
@@ -56,10 +57,11 @@ export async function POST(request) {
       await game.save();
     }
     
-    // Always reset player scores when starting a new game
-    // This ensures scores start at 0 for every new game
+    // Always reset player scores and ready status when starting a new game
+    // This ensures scores start at 0 for every new game and players are not stuck in ready state
     game.getAllPlayers().forEach(player => {
       player.score = 0;
+      player.ready = false; // Reset ready status for new game
       // Update the player in the map to ensure changes persist
       game.players.set(player.id, player);
     });
@@ -90,6 +92,20 @@ export async function POST(request) {
     console.log('Starting game...');
     game.gameActive = true;
     await game.save(); // Save before starting round
+    
+    // Emit game:start event to notify all players the game is starting
+    // This ensures all players transition from lobby to game view
+    await pusher.trigger(`game-${game.gameCode}`, 'game:start', {
+      gameActive: true,
+      roundNumber: 0, // Will be updated by startNewRound
+      players: game.getAllPlayers().map(p => ({
+        id: p.id,
+        nickname: p.nickname,
+        score: p.score || 0,
+        ready: false, // Reset ready status
+      })),
+    });
+    
     await startNewRound(game);
     await game.save(); // Save after starting round
     console.log('Game started successfully');

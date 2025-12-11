@@ -36,17 +36,24 @@ export default function NavigationControls({
     bgcolor: isDark ? 'rgba(2, 52, 48, 0.9)' : 'rgba(255, 255, 255, 0.95)',
     border: '2px solid',
     borderColor: 'primary.main',
+    borderRadius: 0, // Sharp corners for 8-bit look
     width: 44,
     height: 44,
+    boxShadow: '2px 2px 0px rgba(0, 0, 0, 0.3)',
+    imageRendering: 'pixelated',
+    imageRendering: '-moz-crisp-edges',
+    imageRendering: 'crisp-edges',
     '&:hover': {
       bgcolor: isDark ? 'rgba(0, 104, 74, 0.3)' : 'rgba(0, 237, 100, 0.1)',
       borderColor: 'primary.light',
-      transform: 'scale(1.05)',
+      transform: 'translate(-1px, -1px)',
+      boxShadow: '3px 3px 0px rgba(0, 0, 0, 0.3)',
     },
     '&:active': {
-      transform: 'scale(0.95)',
+      transform: 'translate(1px, 1px)',
+      boxShadow: '1px 1px 0px rgba(0, 0, 0, 0.3)',
     },
-    transition: 'all 0.2s ease',
+    transition: 'all 0.1s ease',
   };
 
   return (
@@ -57,14 +64,17 @@ export default function NavigationControls({
         ...positionStyles[position],
         zIndex: 1100,
         p: 1.5,
-        borderRadius: 3,
-        border: '2px solid',
+        borderRadius: 0, // Sharp corners for 8-bit look
+        border: '3px solid',
         borderColor: 'primary.main',
         background: isDark
           ? 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.95) 100%)'
           : 'linear-gradient(135deg, rgba(0, 237, 100, 0.1) 0%, rgba(255, 255, 255, 0.98) 100%)',
         backdropFilter: 'blur(10px)',
-        boxShadow: '0 8px 24px rgba(0, 237, 100, 0.3)',
+        boxShadow: '6px 6px 0px rgba(0, 0, 0, 0.3)',
+        imageRendering: 'pixelated',
+        imageRendering: '-moz-crisp-edges',
+        imageRendering: 'crisp-edges',
         display: { xs: 'none', md: 'flex' },
         flexDirection: 'column',
         gap: 1,

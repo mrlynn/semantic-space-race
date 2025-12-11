@@ -5,6 +5,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Text, Sphere } from '@react-three/drei';
 import * as THREE from 'three';
 import Starfield from './Starfield';
+import ShootingSystem from './ShootingSystem';
+import Crosshair from './Crosshair';
 
 function WordNode({ word, isCurrent, isRelated, onClick, themeMode = 'dark' }) {
   const meshRef = useRef();
@@ -487,19 +489,20 @@ export default function WordGraph3D({
   }, [filteredWords]);
 
   return (
-    <Canvas
-      camera={{ 
-        position: cameraPosition, 
-        fov: 75,
-        near: 0.01, // Allow extremely close viewing
-        far: 100000, // Very large but finite value (Infinity can cause rendering issues)
-      }}
-      style={{ 
-        width: '100%', 
-        height: '100%', 
-        background: themeMode === 'dark' ? '#001E2B' : '#F5F5F5' 
-      }}
-    >
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <Canvas
+        camera={{ 
+          position: cameraPosition, 
+          fov: 75,
+          near: 0.01, // Allow extremely close viewing
+          far: 100000, // Very large but finite value (Infinity can cause rendering issues)
+        }}
+        style={{ 
+          width: '100%', 
+          height: '100%', 
+          background: themeMode === 'dark' ? '#001E2B' : '#F5F5F5' 
+        }}
+      >
       {/* Starfield background */}
       <Starfield count={3000} radius={300} />
       
@@ -545,6 +548,15 @@ export default function WordGraph3D({
         onWordClick={onWordClick}
         themeMode={themeMode}
       />
+      
+      {/* Shooting System - allows firing bullets at words */}
+      <ShootingSystem
+        words={filteredWords}
+        onWordHit={onWordClick}
+        enabled={true}
+        themeMode={themeMode}
+      />
+      
       <OrbitControls
         ref={controlsRef}
         enablePan={true}
@@ -572,6 +584,8 @@ export default function WordGraph3D({
         makeDefault={true}
       />
     </Canvas>
+    <Crosshair themeMode={themeMode} />
+    </div>
   );
 }
 

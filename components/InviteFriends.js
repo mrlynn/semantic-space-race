@@ -36,14 +36,19 @@ export default function InviteFriends({ gameCode, onCopy }) {
         gap: 0.5,
         px: 1.5,
         py: 0.5,
-        borderRadius: 2,
-        border: '2px solid',
+        borderRadius: 0, // Sharp corners for 8-bit look
+        border: '3px solid',
         borderColor: 'primary.main',
         backgroundColor: 'rgba(0, 237, 100, 0.1)',
-        transition: 'all 0.2s ease',
+        boxShadow: '3px 3px 0px rgba(0, 0, 0, 0.3)',
+        imageRendering: 'pixelated',
+        imageRendering: '-moz-crisp-edges',
+        imageRendering: 'crisp-edges',
+        transition: 'all 0.1s ease',
         '&:hover': {
           backgroundColor: 'rgba(0, 237, 100, 0.15)',
-          boxShadow: '0 2px 8px rgba(0, 237, 100, 0.3)',
+          transform: 'translate(-1px, -1px)',
+          boxShadow: '4px 4px 0px rgba(0, 0, 0, 0.3)',
         },
       }}
     >
@@ -79,9 +84,19 @@ export default function InviteFriends({ gameCode, onCopy }) {
           sx={{
             color: copied ? 'success.main' : 'primary.main',
             ml: 0.5,
-            transition: 'all 0.2s ease',
+            borderRadius: 0, // Sharp corners for 8-bit look
+            border: '2px solid',
+            borderColor: copied ? 'success.main' : 'primary.main',
+            boxShadow: '2px 2px 0px rgba(0, 0, 0, 0.2)',
+            transition: 'all 0.1s ease',
             '&:hover': {
               backgroundColor: 'rgba(0, 237, 100, 0.2)',
+              transform: 'translate(-1px, -1px)',
+              boxShadow: '3px 3px 0px rgba(0, 0, 0, 0.2)',
+            },
+            '&:active': {
+              transform: 'translate(1px, 1px)',
+              boxShadow: '1px 1px 0px rgba(0, 0, 0, 0.2)',
             },
           }}
         >

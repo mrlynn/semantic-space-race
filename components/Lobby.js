@@ -91,14 +91,15 @@ export default function Lobby({
           elevation={6}
           sx={{
             p: 5,
-            borderRadius: 4,
+            borderRadius: 0, // Sharp corners for 8-bit look
             background: paperGradient,
             backdropFilter: 'blur(20px)',
-            border: '2px solid',
+            border: '3px solid',
             borderColor: 'primary.main',
-            boxShadow: '0 8px 32px rgba(0, 237, 100, 0.2)',
+            boxShadow: '6px 6px 0px rgba(0, 237, 100, 0.3)',
             position: 'relative',
             overflow: 'hidden',
+            imageRendering: 'pixelated',
           }}
         >
           <BrandShapeDecoration position="top-right" size={150} opacity={brandShapeOpacity.medium} shapeNumber={15} />
@@ -175,14 +176,15 @@ export default function Lobby({
         elevation={6}
         sx={{
           p: 5,
-          borderRadius: 4,
+          borderRadius: 0, // Sharp corners for 8-bit look
           background: paperGradient,
           backdropFilter: 'blur(20px)',
-          border: '2px solid',
+          border: '3px solid',
           borderColor: 'primary.main',
-          boxShadow: '0 8px 32px rgba(0, 237, 100, 0.2)',
+          boxShadow: '6px 6px 0px rgba(0, 237, 100, 0.3)',
           position: 'relative',
           overflow: 'hidden',
+          imageRendering: 'pixelated',
         }}
       >
         <BrandShapeDecoration position="top-left" size={160} opacity={brandShapeOpacity.mediumLow} shapeNumber={8} />
@@ -199,9 +201,34 @@ export default function Lobby({
             )}
           </Box>
         </Box>
-        <Typography variant="h4" gutterBottom align="center" sx={{ mt: 2 }}>
-          Semantic Hop
-        </Typography>
+        
+        {/* Title Graphic */}
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center',
+            mb: 4,
+            position: 'relative',
+            zIndex: 1,
+          }}
+        >
+          <Box
+            component="img"
+            src="/title-graphic.png"
+            alt="Semantic Hop"
+            sx={{
+              maxWidth: '100%',
+              width: { xs: '300px', sm: '400px', md: '500px' },
+              height: 'auto',
+              objectFit: 'contain',
+              filter: isDark 
+                ? 'drop-shadow(0 4px 12px rgba(233, 234, 203, 0.2))' 
+                : 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15))',
+            }}
+          />
+        </Box>
+        
         <Typography variant="body2" align="center" color="text.secondary" sx={{ mb: 3 }}>
           Navigate the semantic graph to find the target word
         </Typography>

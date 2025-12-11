@@ -211,15 +211,27 @@ export async function POST(request) {
       }, { status: 500 });
     }
 
+    // Check for exact match first (case-insensitive)
+    // If exact match, similarity should be 100% regardless of embedding similarity
+    const isExactMatch = guessedWord && 
+      guessedWord.label.toLowerCase() === game.currentTarget.label.toLowerCase();
+    
     // Calculate similarity to target using embeddings
     let similarity = 0;
     try {
-      similarity = cosineSimilarity(
-        guessEmbedding,
-        game.currentTarget.embedding
-      );
-      const guessLabel = guessedWord ? guessedWord.label : guess;
-      console.log(`Similarity between "${guessLabel}" and "${game.currentTarget.label}": ${similarity.toFixed(4)}`);
+      if (isExactMatch) {
+        // Exact match = 100% similarity (1.0)
+        similarity = 1.0;
+        console.log(`✅ Exact match: "${guessedWord.label}" === "${game.currentTarget.label}" (100% similarity)`);
+      } else {
+        // Calculate cosine similarity for non-exact matches
+        similarity = cosineSimilarity(
+          guessEmbedding,
+          game.currentTarget.embedding
+        );
+        const guessLabel = guessedWord ? guessedWord.label : guess;
+        console.log(`Similarity between "${guessLabel}" and "${game.currentTarget.label}": ${similarity.toFixed(4)}`);
+      }
     } catch (error) {
       console.error('Error calculating similarity:', error);
       return NextResponse.json({
@@ -228,10 +240,10 @@ export async function POST(request) {
       }, { status: 500 });
     }
 
-    // Only mark as correct if word is in graph AND similarity is high enough
+    // Only mark as correct if word is in graph AND (exact match OR similarity is high enough)
     const isCorrect = wordInGraph && (
-      similarity >= 0.99 || 
-      (guessedWord && guessedWord.label.toLowerCase() === game.currentTarget.label.toLowerCase())
+      isExactMatch || 
+      similarity >= 0.99
     );
 
     if (isCorrect) {
@@ -260,6 +272,23 @@ export async function POST(request) {
 
       // End the round (this will schedule the next round)
       await endRound(game, playerId, player.nickname);
+    }
+
+    // Update player's current node position if word is in graph
+    if (wordInGraph && guessedWord) {
+      player.currentNodeId = guessedWord.id;
+      player.position = guessedWord.position;
+      game.players.set(playerId, player);
+      await game.save();
+      
+      // Broadcast player position update to other players
+      await pusher.trigger(`game-${game.gameCode}`, 'player:position-update', {
+        playerId,
+        nickname: player.nickname,
+        currentNodeId: guessedWord.id,
+        position: guessedWord.position,
+        wordLabel: guessedWord.label,
+      });
     }
 
     const responseData = {

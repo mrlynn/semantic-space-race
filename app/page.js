@@ -16,11 +16,27 @@ import BrandShapes from '@/components/BrandShapes';
 import InviteFriends from '@/components/InviteFriends';
 import NavigationControls from '@/components/NavigationControls';
 import { celebrateCorrectGuess } from '@/lib/celebration';
+import { preloadAvatars } from '@/components/PlayerAvatar';
+import GameStatsScreen from '@/components/GameStatsScreen';
 
 export default function Home() {
   // Global error handler for production debugging
   useEffect(() => {
     const handleError = (event) => {
+      // Suppress 404 errors for missing avatar GLB files - these are expected
+      const errorMessage = event.error?.message || '';
+      const isAvatar404Error = errorMessage.includes('avatar') && 
+                               (errorMessage.includes('404') || 
+                                errorMessage.includes('Not Found') ||
+                                errorMessage.includes('fetch'));
+      
+      if (isAvatar404Error) {
+        // Silently ignore - avatar files may not exist yet, fallback to spheres
+        event.preventDefault(); // Prevent default error logging
+        return;
+      }
+      
+      // Log other errors normally
       console.error('🔴 [GLOBAL] Unhandled error:', event.error);
       console.error('🔴 [GLOBAL] Error details:', {
         message: event.error?.message,
@@ -32,6 +48,20 @@ export default function Home() {
     };
     
     const handleUnhandledRejection = (event) => {
+      // Suppress 404 rejections for missing avatar GLB files
+      const reason = event.reason?.message || event.reason?.toString() || '';
+      const isAvatar404Error = reason.includes('avatar') && 
+                               (reason.includes('404') || 
+                                reason.includes('Not Found') ||
+                                reason.includes('fetch'));
+      
+      if (isAvatar404Error) {
+        // Silently ignore - avatar files may not exist yet
+        event.preventDefault(); // Prevent default rejection logging
+        return;
+      }
+      
+      // Log other rejections normally
       console.error('🔴 [GLOBAL] Unhandled promise rejection:', event.reason);
     };
     
@@ -68,6 +98,7 @@ export default function Home() {
   const [playerId, setPlayerId] = useState(null);
   const [isHost, setIsHost] = useState(false);
   const [players, setPlayers] = useState([]);
+  const [otherPlayersPositions, setOtherPlayersPositions] = useState(new Map()); // Track other players' positions
   const [gameActive, setGameActive] = useState(false);
   const [words, setWords] = useState([]);
   const [currentNodeId, setCurrentNodeId] = useState(null);
@@ -91,6 +122,10 @@ export default function Home() {
   // Mobile drawer state
   const [mobileHudOpen, setMobileHudOpen] = useState(false);
   const [mobileLeaderboardOpen, setMobileLeaderboardOpen] = useState(false);
+  
+  // Game end state
+  const [gameEnded, setGameEnded] = useState(false);
+  const [finalScores, setFinalScores] = useState([]);
   
   // Refs for timeout cleanup
   const timeoutRefs = useRef({ phaseTransition: null, roundAdvance: null });
@@ -126,6 +161,9 @@ export default function Home() {
         fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:62',message:'round:start event received',data:{roundNumber:data.roundNumber,targetId:data.target?.id,targetLabel:data.target?.label,hasTarget:!!data.target,phase:data.phase},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
         console.log('🔵 [CLIENT] round:start received:', { phase: data.phase, phaseEndsAt: data.phaseEndsAt, roundDuration: data.roundDuration, roundNumber: data.roundNumber });
+        
+        // CRITICAL: Set gameActive to true so all players transition from lobby to game
+        setGameActive(true);
         
         // Clear any pending fallback timeouts since server handled it
         if (timeoutRefs.current.roundAdvance) {
@@ -212,10 +250,19 @@ export default function Home() {
           showToast(`${data.winnerNickname} won round ${data.roundNumber}! The word was: ${data.targetLabel}`, 'success');
         }
         
+        // Check if this is the final round - if so, prepare for game end
+        const currentRound = data.roundNumber || roundNumber;
+        const isFinalRound = currentRound >= maxRounds;
+        
+        if (isFinalRound) {
+          // This is the final round - game will end, stats screen will appear via game:end event
+          console.log('🏁 Final round completed! Game will end and stats screen will appear.');
+          // The game:end event should trigger shortly to show the stats screen
+        }
+        
         // Client-side fallback: If server doesn't start next round, trigger it client-side
         // This handles cases where serverless function terminates before setTimeout fires
         const roundEndDuration = 6000; // 6 seconds (slightly longer than server's 5s to give it a chance)
-        const currentRound = data.roundNumber || roundNumber;
         const shouldContinue = currentRound < maxRounds;
         
         if (shouldContinue) {
@@ -296,6 +343,20 @@ export default function Home() {
 
       channel.bind('game:end', async (data) => {
         setGameActive(false);
+        setGameEnded(true);
+        
+        // Set final scores for stats screen
+        if (data.finalScores && Array.isArray(data.finalScores)) {
+          setFinalScores(data.finalScores);
+        } else {
+          // Fallback: use current players if finalScores not provided
+          setFinalScores(players.map(p => ({
+            id: p.id,
+            nickname: p.nickname,
+            score: p.score || 0,
+          })).sort((a, b) => (b.score || 0) - (a.score || 0)));
+        }
+        
         const winner = data.finalScores && data.finalScores.length > 0
           ? data.finalScores[0].nickname
           : 'Unknown';
@@ -318,6 +379,18 @@ export default function Home() {
         } catch (error) {
           console.error('⚠️ Client-side stats update failed (non-critical):', error);
         }
+      });
+
+      channel.bind('game:start', (data) => {
+        console.log('🟢 [DEBUG] Received game:start event:', { 
+          gameActive: data.gameActive,
+          playerCount: data.players?.length || 0, 
+          players: data.players,
+        });
+        // Transition all players from lobby to game
+        setGameActive(data.gameActive || true);
+        setPlayers(data.players || []);
+        // round:start will be received next to set up the round
       });
 
       channel.bind('lobby:state', (data) => {
@@ -345,11 +418,35 @@ export default function Home() {
         // The joining player gets state from the API response
       });
 
+      // Listen for player position updates
+      channel.bind('player:position-update', (data) => {
+        console.log('🟢 [DEBUG] Player position update:', data);
+        // Update other players' positions (skip current player)
+        if (data.playerId !== playerId) {
+          setOtherPlayersPositions(prev => {
+            const newMap = new Map(prev);
+            newMap.set(data.playerId, {
+              currentNodeId: data.currentNodeId,
+              position: data.position,
+              wordLabel: data.wordLabel,
+            });
+            return newMap;
+          });
+          
+          // Also update the players array with currentNodeId
+          setPlayers(prev => prev.map(p => 
+            p.id === data.playerId 
+              ? { ...p, currentNodeId: data.currentNodeId, position: data.position }
+              : p
+          ));
+        }
+      });
+
       return () => {
         pusher.unsubscribe(`game-${gameCode}`);
       };
     }
-  }, [gameCode]);
+  }, [gameCode, playerId]);
 
   // Timer countdown
   useEffect(() => {
@@ -422,6 +519,13 @@ export default function Home() {
       loadWords();
     }
   }, [gameActive, words.length, loadWords]);
+
+  // Preload avatar models when game becomes active
+  useEffect(() => {
+    if (gameActive) {
+      preloadAvatars();
+    }
+  }, [gameActive]);
 
 
   const handleCreateGame = async (nickname, topic = 'general-database') => {
@@ -624,6 +728,12 @@ export default function Home() {
             // #endregion
             console.log('🔵 [CLIENT] Setting currentNodeId to:', data.wordId);
             setCurrentNodeId(data.wordId);
+            // Update current player's position in players array
+            setPlayers(prev => prev.map(p => 
+              p.id === playerId 
+                ? { ...p, currentNodeId: data.wordId, position: foundWord.position }
+                : p
+            ));
             console.log('🔵 [CLIENT] Calling loadNeighbors with:', data.wordId);
             loadNeighbors(data.wordId);
           } else {
@@ -640,6 +750,12 @@ export default function Home() {
               // #endregion
               console.log('🔵 [CLIENT] Setting currentNodeId to:', foundByLabel.id);
               setCurrentNodeId(foundByLabel.id);
+              // Update current player's position in players array
+              setPlayers(prev => prev.map(p => 
+                p.id === playerId 
+                  ? { ...p, currentNodeId: foundByLabel.id, position: foundByLabel.position }
+                  : p
+              ));
               console.log('🔵 [CLIENT] Calling loadNeighbors with:', foundByLabel.id);
               loadNeighbors(foundByLabel.id);
             } else if (data.position && Array.isArray(data.position) && data.position.length === 3) {
@@ -660,6 +776,14 @@ export default function Home() {
               });
               console.log('🔵 [CLIENT] Setting currentNodeId to:', data.wordId);
               setCurrentNodeId(data.wordId);
+              // Update current player's position in players array
+              if (data.position) {
+                setPlayers(prev => prev.map(p => 
+                  p.id === playerId 
+                    ? { ...p, currentNodeId: data.wordId, position: data.position }
+                    : p
+                ));
+              }
               console.log('🔵 [CLIENT] Calling loadNeighbors with:', data.wordId);
               loadNeighbors(data.wordId);
             } else {
@@ -911,6 +1035,55 @@ export default function Home() {
   const handleWordClick = (word) => {
     handleHop(word.label);
   };
+
+  const handleReturnToLobby = () => {
+    setGameEnded(false);
+    setGameActive(false);
+    setFinalScores([]);
+    // Reset game state
+    setRoundNumber(0);
+    setRoundPhase('TUTORIAL');
+    setWords([]);
+    setCurrentNodeId(null);
+    setDefinition('');
+    setTimeRemaining(null);
+    setBestSimilarity(0);
+    setNeighbors([]);
+    setRelatedWords([]);
+    setFeedback(null);
+    setCurrentTarget(null);
+    setGuesses([]);
+    setHintUsed(false);
+    setHintText('');
+  };
+
+  // Show stats screen when game has ended
+  if (gameEnded && finalScores.length > 0) {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <BrandShapes count={12} opacity={0.12} />
+        <Box sx={{ position: 'relative', minHeight: '100vh' }}>
+          <GameStatsScreen
+            finalScores={finalScores}
+            gameCode={gameCode}
+            onReturnToLobby={handleReturnToLobby}
+            themeMode={themeMode}
+          />
+        </Box>
+        <Snackbar
+          open={toast.open}
+          autoHideDuration={6000}
+          onClose={handleCloseToast}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert onClose={handleCloseToast} severity={toast.severity} sx={{ width: '100%' }}>
+            {toast.message}
+          </Alert>
+        </Snackbar>
+      </ThemeProvider>
+    );
+  }
 
   if (!gameCode || !gameActive) {
     return (
@@ -1204,6 +1377,8 @@ export default function Home() {
                 onWordClick={handleWordClick}
                 themeMode={themeMode}
                 onCameraControlsReady={setCameraControls}
+                players={players}
+                currentPlayerId={playerId}
               />
             )
           ) : (

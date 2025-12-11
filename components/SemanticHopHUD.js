@@ -215,10 +215,14 @@ export default function SemanticHopHUD({
       <Paper elevation={3} sx={{
         p: 2.5,
         mb: 2.5,
-        border: '2px solid',
+        border: '3px solid',
         borderColor: 'primary.main',
-        borderRadius: 3,
+        borderRadius: 0, // Sharp corners for 8-bit look
         background: paperGradient,
+        boxShadow: '6px 6px 0px rgba(0, 0, 0, 0.3)',
+        imageRendering: 'pixelated',
+        imageRendering: '-moz-crisp-edges',
+        imageRendering: 'crisp-edges',
         position: 'relative',
         overflow: 'hidden',
       }}>
@@ -240,10 +244,14 @@ export default function SemanticHopHUD({
       <Paper elevation={3} sx={{
         p: 2.5,
         mb: 2.5,
-        border: '2px solid',
+        border: '3px solid',
         borderColor: 'primary.main',
-        borderRadius: 3,
+        borderRadius: 0, // Sharp corners for 8-bit look
         background: paperGradient,
+        boxShadow: '6px 6px 0px rgba(0, 0, 0, 0.3)',
+        imageRendering: 'pixelated',
+        imageRendering: '-moz-crisp-edges',
+        imageRendering: 'crisp-edges',
         position: 'relative',
         overflow: 'hidden',
       }}>
@@ -261,7 +269,7 @@ export default function SemanticHopHUD({
               mt: 2,
               p: 1.5,
               bgcolor: isDark ? 'rgba(255, 192, 16, 0.15)' : 'rgba(255, 192, 16, 0.1)',
-              borderRadius: 1,
+              borderRadius: 0, // Sharp corners for 8-bit look
               border: '1px solid',
               borderColor: 'warning.main',
               position: 'relative',
@@ -285,7 +293,7 @@ export default function SemanticHopHUD({
           mb: 2.5,
           border: '2px solid',
           borderColor: 'warning.main',
-          borderRadius: 3,
+          borderRadius: 0, // Sharp corners for 8-bit look
           background: warningGradient,
           position: 'relative',
           overflow: 'hidden',
@@ -302,7 +310,7 @@ export default function SemanticHopHUD({
                 mb: 2,
                 p: 2,
                 bgcolor: isDark ? 'rgba(0, 237, 100, 0.15)' : 'rgba(0, 237, 100, 0.1)',
-                borderRadius: 2,
+                borderRadius: 0, // Sharp corners for 8-bit look
                 border: '2px solid',
                 borderColor: 'primary.main',
                 position: 'relative',
@@ -372,7 +380,7 @@ export default function SemanticHopHUD({
       <Paper elevation={3} sx={{
         p: 2.5,
         mb: 2.5,
-        borderRadius: 3,
+        borderRadius: 0, // Sharp corners for 8-bit look
         background: paperGradient,
       }}>
         <form onSubmit={handleSubmit}>
@@ -410,7 +418,7 @@ export default function SemanticHopHUD({
             <LinearProgress 
               sx={{ 
                 height: 4, 
-                borderRadius: 2,
+                borderRadius: 0, // Sharp corners for 8-bit look
                 backgroundColor: 'rgba(0, 237, 100, 0.1)',
                 '& .MuiLinearProgress-bar': {
                   backgroundColor: '#00ED64',
@@ -451,7 +459,7 @@ export default function SemanticHopHUD({
           mb: 2.5,
           border: '2px solid',
           borderColor: 'primary.main',
-          borderRadius: 3,
+          borderRadius: 0, // Sharp corners for 8-bit look
           background: paperGradient,
           position: 'relative',
           overflow: 'hidden',
@@ -513,7 +521,7 @@ export default function SemanticHopHUD({
       <Paper elevation={3} sx={{
         p: 2.5,
         mb: 2.5,
-        borderRadius: 3,
+        borderRadius: 0, // Sharp corners for 8-bit look
         background: paperGradient,
       }}>
         <Typography variant="body2" gutterBottom>
@@ -538,7 +546,7 @@ export default function SemanticHopHUD({
       <Paper elevation={3} sx={{
         p: 2.5,
         mb: 2.5,
-        borderRadius: 3,
+        borderRadius: 0, // Sharp corners for 8-bit look
         background: paperGradient,
       }}>
         <Typography variant="h6" gutterBottom>
@@ -585,7 +593,7 @@ export default function SemanticHopHUD({
         mb: 2.5,
         border: '2px solid',
         borderColor: hintUsed ? 'warning.main' : 'primary.main',
-        borderRadius: 3,
+        borderRadius: 0, // Sharp corners for 8-bit look
         background: hintUsed
           ? hintGradient
           : hintGradient,
@@ -658,7 +666,7 @@ export default function SemanticHopHUD({
       {/* Related Words Panel (for debugging - shows if words are loaded) */}
       <Paper elevation={3} sx={{
         p: 2.5,
-        borderRadius: 3,
+        borderRadius: 0, // Sharp corners for 8-bit look
         background: paperGradient,
       }}>
         <Typography variant="h6" gutterBottom>

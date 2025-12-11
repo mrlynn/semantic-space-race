@@ -88,11 +88,11 @@ export default function Leaderboard({
               bgcolor: player.id === currentPlayerId
                 ? 'rgba(0, 237, 100, 0.2)'
                 : 'transparent',
-              borderRadius: 2,
+              borderRadius: 0, // Sharp corners for 8-bit look
               mb: 0.5,
-              border: player.id === currentPlayerId ? '1px solid' : 'none',
+              border: player.id === currentPlayerId ? '2px solid' : 'none',
               borderColor: 'primary.main',
-              transition: 'all 0.2s ease',
+              transition: 'all 0.1s ease',
               '&:hover': {
                 bgcolor: 'rgba(0, 237, 100, 0.1)',
               },
@@ -170,11 +170,11 @@ export default function Leaderboard({
                 bgcolor: isCurrentPlayer
                   ? 'rgba(0, 237, 100, 0.2)'
                   : 'transparent',
-                borderRadius: 2,
+                borderRadius: 0, // Sharp corners for 8-bit look
                 mb: 0.5,
-                border: isCurrentPlayer ? '1px solid' : 'none',
+                border: isCurrentPlayer ? '2px solid' : 'none',
                 borderColor: 'primary.main',
-                transition: 'all 0.2s ease',
+                transition: 'all 0.1s ease',
                 '&:hover': {
                   bgcolor: 'rgba(0, 237, 100, 0.1)',
                 },
@@ -251,14 +251,17 @@ export default function Leaderboard({
         elevation={6}
         sx={{
           p: 2.5,
-          border: '2px solid',
+          border: '3px solid',
           borderColor: 'primary.main',
-          borderRadius: 3,
+          borderRadius: 0, // Sharp corners for 8-bit look
           background: paperGradient,
           backdropFilter: 'blur(10px)',
-          boxShadow: '0 8px 24px rgba(0, 237, 100, 0.2)',
+          boxShadow: '6px 6px 0px rgba(0, 0, 0, 0.3)',
           position: 'relative',
           overflow: 'hidden',
+          imageRendering: 'pixelated',
+          imageRendering: '-moz-crisp-edges',
+          imageRendering: 'crisp-edges',
         }}
       >
         <BrandShapeDecoration position="top-left" size={80} opacity={brandShapeOpacity.medium} shapeNumber={7} />
@@ -305,9 +308,11 @@ export default function Leaderboard({
                   sx={{
                     px: 1,
                     py: 0.5,
-                    borderRadius: 1,
+                    borderRadius: 0, // Sharp corners for 8-bit look
                     fontSize: '0.65rem',
                     cursor: 'pointer',
+                    border: '2px solid',
+                    borderColor: sortBy === sort ? 'primary.main' : 'transparent',
                     bgcolor: sortBy === sort
                       ? 'primary.main'
                       : isDark
@@ -315,13 +320,16 @@ export default function Leaderboard({
                       : 'rgba(0, 0, 0, 0.05)',
                     color: sortBy === sort ? 'black' : 'text.secondary',
                     fontWeight: sortBy === sort ? 700 : 400,
-                    transition: 'all 0.2s',
+                    transition: 'all 0.1s',
+                    boxShadow: sortBy === sort ? '2px 2px 0px rgba(0, 0, 0, 0.2)' : 'none',
                     '&:hover': {
                       bgcolor: sortBy === sort
                         ? 'primary.light'
                         : isDark
                         ? 'rgba(255, 255, 255, 0.15)'
                         : 'rgba(0, 0, 0, 0.1)',
+                      transform: sortBy === sort ? 'translate(-1px, -1px)' : 'none',
+                      boxShadow: sortBy === sort ? '3px 3px 0px rgba(0, 0, 0, 0.2)' : 'none',
                     },
                   }}
                 >

@@ -6,6 +6,9 @@ import { OrbitControls, Text, Sphere, Line, Billboard } from '@react-three/drei'
 import * as THREE from 'three';
 import Starfield from './Starfield';
 import { cosineSimilarity } from '@/lib/utils';
+import ShootingSystem from './ShootingSystem';
+import Crosshair from './Crosshair';
+import OtherPlayers from './OtherPlayers';
 
 // Semantic Proximity Controller - adjusts positions based on semantic similarity
 function SemanticProximityController({ words, positions, setPositions, enabled = true, strength = 0.4 }) {
@@ -943,6 +946,8 @@ export default function WordGraphHNSW({
   themeMode = 'dark',
   semanticProximityStrength = 0.4,
   onCameraControlsReady = null,
+  players = [],
+  currentPlayerId = null,
 }) {
   const controlsRef = useRef();
   const cameraRef = useRef();
@@ -1310,6 +1315,27 @@ export default function WordGraphHNSW({
         onHubHover={setHoveredHub}
       />
 
+      {/* Shooting System - allows firing bullets at words */}
+      <ShootingSystem
+        words={filteredWords.map(word => ({
+          ...word,
+          position: adjustedPositions[word.id] || word.position
+        }))}
+        onWordHit={onWordClick}
+        enabled={true}
+        themeMode={themeMode}
+      />
+
+      {/* Render other players */}
+      <OtherPlayers
+        players={players}
+        currentPlayerId={currentPlayerId}
+        words={filteredWords}
+        adjustedPositions={adjustedPositions}
+        maxViewDistance={500}
+        themeMode={themeMode}
+      />
+
       <OrbitControls
         ref={controlsRef}
         enablePan={true}
@@ -1331,6 +1357,8 @@ export default function WordGraphHNSW({
         makeDefault={true}
       />
       </Canvas>
+      
+      <Crosshair themeMode={themeMode} />
       
       {/* Player Position Display */}
       <div
