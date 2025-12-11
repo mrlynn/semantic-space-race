@@ -298,10 +298,6 @@ const HNSWNode = React.memo(function HNSWNode({
 
 // Connection edge component with type-based styling - memoized for performance
 const HNSWEdge = React.memo(function HNSWEdge({ start, end, connectionType, similarity, opacity = 0.3, cameraDistance = 0 }) {
-  if (!start || !end || !Array.isArray(start) || !Array.isArray(end)) {
-    return null;
-  }
-
   // Further reduced opacity for less visual clutter, especially for local connections
   const baseOpacity = connectionType === 'local' ? 0.15 : connectionType === 'cross-layer' ? 0.3 : 0.4;
   const lineOpacity = Math.max(0.03, similarity * baseOpacity * opacity);
@@ -318,10 +314,15 @@ const HNSWEdge = React.memo(function HNSWEdge({ start, end, connectionType, simi
     ? '#FFB800' 
     : '#00684A';
 
-  const points = useMemo(() => [
-    new THREE.Vector3(...start),
-    new THREE.Vector3(...end),
-  ], [start, end]);
+  const points = useMemo(() => {
+    if (!start || !end || !Array.isArray(start) || !Array.isArray(end)) {
+      return [];
+    }
+    return [
+      new THREE.Vector3(...start),
+      new THREE.Vector3(...end),
+    ];
+  }, [start, end]);
 
   // Subtle pulsing animation for long-range connections - reduced intensity
   const lineRef = useRef();
@@ -333,6 +334,10 @@ const HNSWEdge = React.memo(function HNSWEdge({ start, end, connectionType, simi
       }
     }
   });
+
+  if (!start || !end || !Array.isArray(start) || !Array.isArray(end)) {
+    return null;
+  }
 
   // Fade out very distant local connections
   const distanceFade = cameraDistance > 2000 && connectionType === 'local' 
@@ -366,11 +371,12 @@ const HNSWEdge = React.memo(function HNSWEdge({ start, end, connectionType, simi
 
 // Navigation path component showing greedy search path
 function NavigationPath({ path, isVisible }) {
-  if (!isVisible || !path || path.length < 2) return null;
-
   const pathPoints = useMemo(() => {
+    if (!path || path.length < 2) return [];
     return path.map(pos => new THREE.Vector3(...pos));
   }, [path]);
+
+  if (!isVisible || !path || path.length < 2) return null;
 
   return (
     <Line
@@ -703,8 +709,19 @@ export default function WordGraphHNSW({
   }, [words]);
 
   // Initialize semantic positions from word positions
+  const previousWordsRef = useRef(new Set());
   useEffect(() => {
     if (filteredWords.length === 0) return;
+    
+    // Check if words actually changed (by ID)
+    const currentWordIds = new Set(filteredWords.map(w => w.id));
+    const wordsChanged = 
+      currentWordIds.size !== previousWordsRef.current.size ||
+      Array.from(currentWordIds).some(id => !previousWordsRef.current.has(id));
+    
+    if (!wordsChanged) return;
+    
+    previousWordsRef.current = currentWordIds;
     
     const initialPositions = {};
     filteredWords.forEach(word => {
@@ -728,6 +745,7 @@ export default function WordGraphHNSW({
     if (hasChanges) {
       setSemanticPositions(initialPositions);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredWords]);
 
   // Hub detection algorithm

@@ -297,7 +297,7 @@ export default function SemanticHopHUD({
           </Typography>
         ) : (
           <Typography variant="body2" color="text.secondary">
-            Click "Get Hint" to reveal an additional clue about the target word. This will cost 3 points.
+            Click &quot;Get Hint&quot; to reveal an additional clue about the target word. This will cost 3 points.
           </Typography>
         )}
       </Paper>

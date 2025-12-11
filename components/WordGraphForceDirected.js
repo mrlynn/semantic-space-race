@@ -118,18 +118,23 @@ const GraphNode = React.memo(function GraphNode({ word, isCurrent, isRelated, on
 function GraphEdge({ start, end, similarity, opacity = 0.3 }) {
   const lineRef = useRef();
 
-  if (!start || !end || !Array.isArray(start) || !Array.isArray(end)) {
-    return null;
-  }
-
   // Line thickness based on similarity
   const lineOpacity = Math.max(0.1, similarity * opacity);
   const color = similarity > 0.7 ? '#00ED64' : similarity > 0.5 ? '#FFB800' : '#00684A';
 
-  const points = useMemo(() => [
-    new THREE.Vector3(...start),
-    new THREE.Vector3(...end),
-  ], [start, end]);
+  const points = useMemo(() => {
+    if (!start || !end || !Array.isArray(start) || !Array.isArray(end)) {
+      return [];
+    }
+    return [
+      new THREE.Vector3(...start),
+      new THREE.Vector3(...end),
+    ];
+  }, [start, end]);
+
+  if (!start || !end || !Array.isArray(start) || !Array.isArray(end)) {
+    return null;
+  }
 
   return (
     <Line

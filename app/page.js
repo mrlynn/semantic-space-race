@@ -169,7 +169,7 @@ export default function Home() {
     if (gameActive && words.length === 0) {
       loadWords();
     }
-  }, [gameActive]);
+  }, [gameActive, words.length]);
 
   const loadWords = async () => {
     try {
