@@ -16,6 +16,32 @@ import BrandShapes from '@/components/BrandShapes';
 import InviteFriends from '@/components/InviteFriends';
 
 export default function Home() {
+  // Global error handler for production debugging
+  useEffect(() => {
+    const handleError = (event) => {
+      console.error('🔴 [GLOBAL] Unhandled error:', event.error);
+      console.error('🔴 [GLOBAL] Error details:', {
+        message: event.error?.message,
+        stack: event.error?.stack,
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno
+      });
+    };
+    
+    const handleUnhandledRejection = (event) => {
+      console.error('🔴 [GLOBAL] Unhandled promise rejection:', event.reason);
+    };
+    
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
+
   // Theme state with localStorage persistence
   const [themeMode, setThemeMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -89,8 +115,9 @@ export default function Home() {
 
       channel.bind('round:start', (data) => {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:62',message:'round:start event received',data:{roundNumber:data.roundNumber,targetId:data.target?.id,targetLabel:data.target?.label,hasTarget:!!data.target},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:62',message:'round:start event received',data:{roundNumber:data.roundNumber,targetId:data.target?.id,targetLabel:data.target?.label,hasTarget:!!data.target,phase:data.phase},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
+        console.log('🔵 [CLIENT] round:start received:', { phase: data.phase, phaseEndsAt: data.phaseEndsAt, roundDuration: data.roundDuration });
         setRoundNumber(data.roundNumber);
         setMaxRounds(data.maxRounds);
         setDefinition(data.definition);
@@ -109,6 +136,22 @@ export default function Home() {
         if (data.players) {
           setPlayers(data.players);
         }
+        
+        // Client-side fallback: Auto-transition from TARGET_REVEAL to SEARCH
+        // This handles cases where serverless function terminates before setTimeout fires
+        if (data.phase === 'TARGET_REVEAL') {
+          const targetRevealDuration = data.phaseEndsAt ? Math.max(0, data.phaseEndsAt - Date.now()) : 3000; // Default 3 seconds
+          console.log('🔵 [CLIENT] Scheduling client-side phase transition in', targetRevealDuration, 'ms');
+          setTimeout(() => {
+            console.log('🔵 [CLIENT] Client-side phase transition: TARGET_REVEAL -> SEARCH');
+            setRoundPhase('SEARCH');
+            // Set time remaining to round duration
+            if (data.roundDuration) {
+              setTimeRemaining(data.roundDuration);
+            }
+          }, targetRevealDuration);
+        }
+        
         // Load related words after a short delay to ensure target is set
         setTimeout(() => {
           if (data.target && data.target.id) {
@@ -125,6 +168,7 @@ export default function Home() {
       });
 
       channel.bind('round:phase-change', (data) => {
+        console.log('🔵 [CLIENT] round:phase-change received:', { phase: data.phase, roundDuration: data.roundDuration });
         setRoundPhase(data.phase);
         setTimeRemaining(data.roundDuration);
         // Reset for new search phase
@@ -579,6 +623,16 @@ export default function Home() {
     }
   };
 
+  // Wrapper for onHop prop to add logging and validation
+  const onHopWrapper = useCallback((wordLabel) => {
+    console.log('🔵 [PAGE] onHopWrapper called with:', wordLabel, 'handleHop type:', typeof handleHop);
+    if (handleHop && typeof handleHop === 'function') {
+      handleHop(wordLabel);
+    } else {
+      console.error('🔴 [PAGE] handleHop is not a function:', handleHop);
+    }
+  }, [handleHop]);
+
   const loadNeighbors = async (wordId) => {
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:338',message:'loadNeighbors called',data:{wordId,wordIdType:typeof wordId,hasWordId:!!wordId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
@@ -919,7 +973,7 @@ export default function Home() {
           maxRounds={maxRounds}
           timeRemaining={timeRemaining}
           definition={definition}
-          onHop={handleHop}
+          onHop={onHopWrapper}
           bestSimilarity={bestSimilarity}
           neighbors={neighbors}
           relatedWords={relatedWords}

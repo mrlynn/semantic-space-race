@@ -430,7 +430,22 @@ export default function SemanticHopHUD({
           {neighbors.length > 0 ? (
             neighbors.map((neighbor, index) => (
               <ListItem key={index} disablePadding>
-                <ListItemButton onClick={() => onHop(neighbor.label)}>
+                <ListItemButton 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🔵 [HUD] Neighbor clicked:', neighbor.label, 'onHop type:', typeof onHop);
+                    if (onHop && typeof onHop === 'function') {
+                      try {
+                        onHop(neighbor.label);
+                      } catch (error) {
+                        console.error('🔴 [HUD] Error calling onHop from neighbor:', error);
+                      }
+                    } else {
+                      console.error('🔴 [HUD] onHop is not a function:', onHop);
+                    }
+                  }}
+                >
                   <ListItemText
                     primary={neighbor.label}
                     secondary={`${Math.round(neighbor.similarity * 100)}% similar`}
@@ -475,7 +490,20 @@ export default function SemanticHopHUD({
               variant="outlined"
               color="warning"
               size="small"
-              onClick={onGetHint}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🔵 [HUD] Get Hint clicked, onGetHint type:', typeof onGetHint);
+                if (onGetHint && typeof onGetHint === 'function') {
+                  try {
+                    onGetHint();
+                  } catch (error) {
+                    console.error('🔴 [HUD] Error calling onGetHint:', error);
+                  }
+                } else {
+                  console.error('🔴 [HUD] onGetHint is not a function:', onGetHint);
+                }
+              }}
               disabled={isGuessing}
             >
               Get Hint (-3 pts)
@@ -522,7 +550,22 @@ export default function SemanticHopHUD({
           {relatedWords.length > 0 ? (
             relatedWords.map((word, index) => (
               <ListItem key={index} disablePadding>
-                <ListItemButton onClick={() => onHop(word.label)}>
+                <ListItemButton 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🔵 [HUD] Related word clicked:', word.label, 'onHop type:', typeof onHop);
+                    if (onHop && typeof onHop === 'function') {
+                      try {
+                        onHop(word.label);
+                      } catch (error) {
+                        console.error('🔴 [HUD] Error calling onHop from related word:', error);
+                      }
+                    } else {
+                      console.error('🔴 [HUD] onHop is not a function:', onHop);
+                    }
+                  }}
+                >
                   <ListItemText
                     primary={word.label}
                     secondary={`${Math.round(word.similarity * 100)}% similar to target`}
