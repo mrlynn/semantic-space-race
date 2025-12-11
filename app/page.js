@@ -1,0 +1,711 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { ThemeProvider, CssBaseline, Box, AppBar, Toolbar, Snackbar, Alert, Typography } from '@mui/material';
+import { getPusherClient } from '@/lib/pusherClient';
+import { mongodbTheme } from '@/lib/mongodbTheme';
+import Lobby from '@/components/Lobby';
+import SemanticHopHUD from '@/components/SemanticHopHUD';
+import Leaderboard from '@/components/Leaderboard';
+import WordGraph3D from '@/components/WordGraph3D';
+import WordGraphForceDirected from '@/components/WordGraphForceDirected';
+import WordGraphHNSW from '@/components/WordGraphHNSW';
+import MongoDBLogo from '@/components/MongoDBLogo';
+
+export default function Home() {
+  const [gameCode, setGameCode] = useState(null);
+  const [playerId, setPlayerId] = useState(null);
+  const [isHost, setIsHost] = useState(false);
+  const [players, setPlayers] = useState([]);
+  const [gameActive, setGameActive] = useState(false);
+  const [words, setWords] = useState([]);
+  const [currentNodeId, setCurrentNodeId] = useState(null);
+  const [roundNumber, setRoundNumber] = useState(0);
+  const [maxRounds, setMaxRounds] = useState(5);
+  const [definition, setDefinition] = useState('');
+  const [timeRemaining, setTimeRemaining] = useState(null);
+  const [bestSimilarity, setBestSimilarity] = useState(0);
+  const [neighbors, setNeighbors] = useState([]);
+  const [relatedWords, setRelatedWords] = useState([]);
+  const [feedback, setFeedback] = useState(null);
+  const [currentTarget, setCurrentTarget] = useState(null);
+  const [roundPhase, setRoundPhase] = useState('TUTORIAL');
+  const [guesses, setGuesses] = useState([]);
+  const [isGuessing, setIsGuessing] = useState(false);
+  const [hintUsed, setHintUsed] = useState(false);
+  const [hintText, setHintText] = useState('');
+  const [visualizationMode, setVisualizationMode] = useState('spheres'); // 'spheres', 'graph', or 'hnsw'
+
+  // Toast notification state
+  const [toast, setToast] = useState({ open: false, message: '', severity: 'info' });
+
+  const showToast = (message, severity = 'info') => {
+    setToast({ open: true, message, severity });
+  };
+
+  const handleCloseToast = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setToast({ ...toast, open: false });
+  };
+
+  // Initialize Pusher
+  useEffect(() => {
+    const pusher = getPusherClient();
+    if (!pusher) return;
+
+    // Subscribe to game channel when gameCode is available
+    if (gameCode) {
+      const channel = pusher.subscribe(`game-${gameCode}`);
+
+      channel.bind('round:start', (data) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:62',message:'round:start event received',data:{roundNumber:data.roundNumber,targetId:data.target?.id,targetLabel:data.target?.label,hasTarget:!!data.target},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        setRoundNumber(data.roundNumber);
+        setMaxRounds(data.maxRounds);
+        setDefinition(data.definition);
+        setCurrentTarget(data.target);
+        setRoundPhase(data.phase);
+        setTimeRemaining(data.roundDuration);
+        setBestSimilarity(0);
+        setFeedback(null);
+        setCurrentNodeId(null);
+        setGuesses([]); // Reset guesses for new round
+        setNeighbors([]); // Reset neighbors
+        setRelatedWords([]); // Reset related words
+        setHintUsed(false); // Reset hint usage
+        setHintText(''); // Reset hint text
+        // Update players with scores
+        if (data.players) {
+          setPlayers(data.players);
+        }
+        // Load related words after a short delay to ensure target is set
+        setTimeout(() => {
+          if (data.target && data.target.id) {
+            console.log('🟢 Round started, loading related words for target:', data.target.id, data.target.label);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:83',message:'setTimeout: target has id',data:{targetId:data.target.id,targetLabel:data.target.label,idType:typeof data.target.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
+          } else {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:85',message:'setTimeout: target missing or no id',data:{hasTarget:!!data.target,hasId:!!data.target?.id,target:data.target},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
+          }
+        }, 100);
+      });
+
+      channel.bind('round:phase-change', (data) => {
+        setRoundPhase(data.phase);
+        setTimeRemaining(data.roundDuration);
+        // Reset for new search phase
+        if (data.phase === 'SEARCH') {
+          setBestSimilarity(0);
+          setFeedback(null);
+          setCurrentNodeId(null);
+          setGuesses([]); // Reset guesses
+        }
+      });
+
+      channel.bind('round:end', (data) => {
+        setRoundPhase('END');
+        setTimeRemaining(5000);
+        // Update players with latest scores
+        if (data.players) {
+          setPlayers(data.players);
+        }
+        // Show winner announcement
+        if (data.winnerNickname) {
+          showToast(`${data.winnerNickname} won round ${data.roundNumber}! The word was: ${data.targetLabel}`, 'success');
+        }
+      });
+
+      channel.bind('player:correct-guess', (data) => {
+        // Update leaderboard with new scores
+        if (data.players) {
+          setPlayers(data.players);
+        }
+        // Update round phase to show round is ending
+        setRoundPhase('END');
+      });
+
+      channel.bind('game:end', (data) => {
+        setGameActive(false);
+        const winner = data.finalScores && data.finalScores.length > 0
+          ? data.finalScores[0].nickname
+          : 'Unknown';
+        showToast(`Game Over! Winner: ${winner}`, 'info');
+      });
+
+      channel.bind('lobby:state', (data) => {
+        setPlayers(data.players || []);
+        setGameActive(data.gameActive || false);
+        setRoundNumber(data.roundNumber || 0);
+      });
+
+      return () => {
+        pusher.unsubscribe(`game-${gameCode}`);
+      };
+    }
+  }, [gameCode]);
+
+  // Timer countdown
+  useEffect(() => {
+    if (timeRemaining === null || timeRemaining <= 0) return;
+
+    const interval = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1000) return 0;
+        return prev - 1000;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timeRemaining]);
+
+  // Load words when game starts
+  useEffect(() => {
+    if (gameActive && words.length === 0) {
+      loadWords();
+    }
+  }, [gameActive]);
+
+  const loadWords = async () => {
+    try {
+      const response = await fetch('/api/words');
+      const data = await response.json();
+      if (data.success) {
+        console.log(`Loaded ${data.words.length} words from API`);
+        
+        // Log sample words to verify structure
+        if (data.words.length > 0) {
+          console.log('Sample word structure:', {
+            id: data.words[0].id,
+            label: data.words[0].label,
+            position: data.words[0].position,
+            positionType: typeof data.words[0].position,
+            isArray: Array.isArray(data.words[0].position)
+          });
+        }
+        
+        const wordsWithValidPositions = data.words.filter(w => {
+          const pos = w.position;
+          return Array.isArray(pos) && 
+                 pos.length === 3 && 
+                 pos.some(p => p !== 0); // At least one coordinate is not zero
+        });
+        console.log(`Words with non-zero positions: ${wordsWithValidPositions.length}/${data.words.length}`);
+        
+        if (wordsWithValidPositions.length > 0) {
+          console.log('Sample valid position:', wordsWithValidPositions[0].label, wordsWithValidPositions[0].position);
+        }
+        
+        setWords(data.words);
+        console.log('Words state updated, count:', data.words.length);
+      } else {
+        console.error('Failed to load words:', data.error);
+      }
+    } catch (error) {
+      console.error('Error loading words:', error);
+    }
+  };
+
+  const fetchPlayers = async () => {
+    // This would typically come from WebSocket updates
+    // For now, we'll rely on WebSocket events
+  };
+
+  const handleCreateGame = async (nickname) => {
+    try {
+      const response = await fetch('/api/game/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setGameCode(data.gameCode);
+        setPlayerId(data.playerId);
+        setIsHost(true);
+        setPlayers([{ id: data.playerId, nickname, ready: false, score: 0 }]);
+      }
+    } catch (error) {
+      console.error('Error creating game:', error);
+    }
+  };
+
+  const handleJoinGame = async (code, nickname) => {
+    try {
+      const response = await fetch('/api/game/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameCode: code, nickname }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setGameCode(data.gameCode);
+        setPlayerId(data.playerId);
+        setIsHost(false);
+        // Fetch current players
+        fetchPlayers();
+      } else {
+        showToast('Failed to join game: ' + data.error, 'error');
+      }
+    } catch (error) {
+      console.error('Error joining game:', error);
+      showToast('Failed to join game', 'error');
+    }
+  };
+
+  const handleStartGame = async () => {
+    try {
+      const response = await fetch('/api/game/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameCode, playerId }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setGameActive(true);
+        // Reload words when game starts
+        await loadWords();
+      } else {
+        showToast('Failed to start game: ' + data.error, 'error');
+      }
+    } catch (error) {
+      console.error('Error starting game:', error);
+      showToast('Failed to start game', 'error');
+    }
+  };
+
+  const handleHop = async (wordLabel) => {
+    if (!gameActive || roundPhase !== 'SEARCH' || isGuessing) return;
+
+    setIsGuessing(true);
+    try {
+      const response = await fetch('/api/game/guess', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameCode, playerId, guess: wordLabel }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        // Add guess to history
+        const newGuess = {
+          word: data.label || wordLabel,
+          similarity: data.similarity,
+          inGraph: data.inGraph !== false, // Default to true if not specified
+          timestamp: Date.now(),
+        };
+        setGuesses(prev => [...prev, newGuess]);
+        
+        // Try to find the word in our loaded words array and hop to it
+        // This works even if the word wasn't in game.wordNodes
+        if (data.wordId) {
+          // Word exists in database - try to find it in our words array
+          const foundWord = words.find(w => w.id === data.wordId);
+          if (foundWord && foundWord.position) {
+            console.log('🟢 Found guessed word in words array, hopping to:', foundWord.label, foundWord.position);
+            setCurrentNodeId(data.wordId);
+            loadNeighbors(data.wordId);
+          } else {
+            // Word not in our loaded words - try to find by label
+            const foundByLabel = words.find(w => w.label.toLowerCase() === (data.label || wordLabel).toLowerCase());
+            if (foundByLabel && foundByLabel.position) {
+              console.log('🟢 Found guessed word by label, hopping to:', foundByLabel.label, foundByLabel.position);
+              setCurrentNodeId(foundByLabel.id);
+              loadNeighbors(foundByLabel.id);
+            } else {
+              console.warn('🔴 Guessed word not found in words array:', data.label || wordLabel, 'wordId:', data.wordId);
+            }
+          }
+        } else if (data.inGraph === false) {
+          // Word not in graph - don't try to hop
+          console.log('🟡 Word not in graph, skipping hop');
+        }
+        
+        setFeedback({ 
+          similarity: data.similarity, 
+          word: data.label || wordLabel,
+          inGraph: data.inGraph !== false,
+          message: data.message,
+        });
+        
+        if (data.similarity > bestSimilarity) {
+          setBestSimilarity(data.similarity);
+        }
+      } else {
+        showToast(data.error || 'Failed to process guess', 'error');
+      }
+    } catch (error) {
+      console.error('Error hopping:', error);
+      showToast('Error processing guess. Please try again.', 'error');
+    } finally {
+      setIsGuessing(false);
+    }
+  };
+
+  const loadNeighbors = async (wordId) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:338',message:'loadNeighbors called',data:{wordId,wordIdType:typeof wordId,hasWordId:!!wordId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+    if (!wordId) {
+      console.warn('loadNeighbors: wordId is missing');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:340',message:'loadNeighbors: wordId missing, returning early',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      return;
+    }
+    try {
+      console.log('Loading neighbors for wordId:', wordId);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:345',message:'loadNeighbors: making API call',data:{wordId,limit:5},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      const response = await fetch('/api/similarity-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wordId, limit: 5 }),
+      });
+      const data = await response.json();
+      console.log('Neighbors response:', data);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:351',message:'loadNeighbors: API response received',data:{success:data.success,resultsCount:data.results?.length || 0,error:data.error,hasResults:!!data.results},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      if (data.success && data.results) {
+        setNeighbors(data.results);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:353',message:'loadNeighbors: setting neighbors',data:{neighborsCount:data.results.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+      } else {
+        console.warn('Failed to load neighbors:', data.error);
+        setNeighbors([]);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:355',message:'loadNeighbors: failed, setting empty array',data:{error:data.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+      }
+    } catch (error) {
+      console.error('Error loading neighbors:', error);
+      setNeighbors([]);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:359',message:'loadNeighbors: exception caught',data:{error:error.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+    }
+  };
+
+  const loadRelatedWords = useCallback(async () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:364',message:'loadRelatedWords called',data:{hasCurrentTarget:!!currentTarget,hasId:!!currentTarget?.id,targetId:currentTarget?.id,targetIdType:typeof currentTarget?.id,targetLabel:currentTarget?.label},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
+    if (!currentTarget || !currentTarget.id) {
+      console.warn('loadRelatedWords: currentTarget or currentTarget.id is missing', currentTarget);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:366',message:'loadRelatedWords: missing target or id, returning early',data:{currentTarget},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      return;
+    }
+    try {
+      console.log('🟢 Loading related words for target:', currentTarget.id, currentTarget.label, 'Type:', typeof currentTarget.id);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:370',message:'loadRelatedWords: making API call',data:{wordId:currentTarget.id,limit:5},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      const response = await fetch('/api/similarity-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wordId: currentTarget.id, limit: 5 }),
+      });
+      const data = await response.json();
+      console.log('🟢 Related words response:', data);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:377',message:'loadRelatedWords: API response received',data:{success:data.success,resultsCount:data.results?.length || 0,error:data.error,hasResults:!!data.results},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      if (data.success && data.results && data.results.length > 0) {
+        console.log(`🟢 Successfully loaded ${data.results.length} related words`);
+        setRelatedWords(data.results);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:380',message:'loadRelatedWords: setting related words',data:{relatedWordsCount:data.results.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
+      } else {
+        console.warn('🔴 Failed to load related words:', data.error || 'No results returned');
+        setRelatedWords([]);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:383',message:'loadRelatedWords: failed, setting empty array',data:{error:data.error,resultsCount:data.results?.length || 0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
+      }
+    } catch (error) {
+      console.error('🔴 Error loading related words:', error);
+      setRelatedWords([]);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:387',message:'loadRelatedWords: exception caught',data:{error:error.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+    }
+  }, [currentTarget]);
+
+  useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:392',message:'useEffect: currentTarget changed',data:{hasCurrentTarget:!!currentTarget,hasId:!!currentTarget?.id,targetId:currentTarget?.id,targetLabel:currentTarget?.label},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
+    if (currentTarget && currentTarget.id) {
+      console.log('🟢 useEffect triggered: currentTarget changed, loading related words', currentTarget);
+      loadRelatedWords();
+    } else {
+      console.warn('🔴 useEffect: currentTarget missing or has no id', currentTarget);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:396',message:'useEffect: target missing or no id, not calling loadRelatedWords',data:{currentTarget},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+    }
+  }, [currentTarget, loadRelatedWords]);
+
+  const handleGetHint = async () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:400',message:'handleGetHint called',data:{hintUsed,gameActive,roundPhase,gameCode,playerId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
+    if (hintUsed || !gameActive || roundPhase !== 'SEARCH') {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:402',message:'handleGetHint: early return',data:{hintUsed,gameActive,roundPhase},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+      return;
+    }
+
+    try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:404',message:'handleGetHint: making API call',data:{gameCode,playerId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+      const response = await fetch('/api/game/hint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameCode, playerId }),
+      });
+      const data = await response.json();
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:410',message:'handleGetHint: API response received',data:{success:data.success,hintsCount:data.hints?.length || 0,error:data.error,hasHints:!!data.hints},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+      if (data.success) {
+        setHintUsed(true);
+        setHintText(data.hint || '');
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:412',message:'handleGetHint: setting hint text',data:{hintTextLength:data.hint?.length || 0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+        // #endregion
+        showToast(`Hint revealed! -${data.penalty} points. Your score: ${data.newScore}`, 'info');
+        // Update player score in local state
+        setPlayers(prev => prev.map(p => 
+          p.id === playerId ? { ...p, score: data.newScore } : p
+        ));
+      } else {
+        showToast(data.error || 'Failed to get hint', 'error');
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:419',message:'handleGetHint: failed',data:{error:data.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+        // #endregion
+      }
+    } catch (error) {
+      console.error('Error getting hint:', error);
+      showToast('Error getting hint. Please try again.', 'error');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:422',message:'handleGetHint: exception caught',data:{error:error.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+    }
+  };
+
+  const handleWordClick = (word) => {
+    handleHop(word.label);
+  };
+
+  if (!gameCode || !gameActive) {
+    return (
+      <ThemeProvider theme={mongodbTheme}>
+        <CssBaseline />
+        <Lobby
+          gameCode={gameCode}
+          players={players}
+          isHost={isHost}
+          onStartGame={handleStartGame}
+          onJoinGame={handleJoinGame}
+          onCreateGame={handleCreateGame}
+        />
+        <Snackbar
+          open={toast.open}
+          autoHideDuration={6000}
+          onClose={handleCloseToast}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert onClose={handleCloseToast} severity={toast.severity} sx={{ width: '100%' }}>
+            {toast.message}
+          </Alert>
+        </Snackbar>
+      </ThemeProvider>
+    );
+  }
+
+  return (
+    <ThemeProvider theme={mongodbTheme}>
+      <CssBaseline />
+      <Box sx={{ width: '100vw', height: '100vh', position: 'relative' }}>
+        {/* MongoDB Header */}
+        <AppBar
+          position="absolute"
+          sx={{
+            backgroundColor: 'transparent',
+            boxShadow: 'none',
+            borderBottom: '1px solid',
+            borderColor: 'primary.main',
+            zIndex: 1100,
+          }}
+        >
+          <Toolbar sx={{ justifyContent: 'space-between', px: 2 }}>
+            <MongoDBLogo width={140} height={35} showText={true} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ color: 'primary.main', fontWeight: 600 }}>
+                Semantic Hop
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: visualizationMode === 'spheres' ? 'primary.main' : 'text.secondary',
+                    fontSize: '0.75rem',
+                    minWidth: '50px',
+                    textAlign: 'center'
+                  }}
+                >
+                  Spheres
+                </Typography>
+                <Box
+                  component="button"
+                  onClick={() => {
+                    setVisualizationMode(prev => {
+                      if (prev === 'spheres') return 'graph';
+                      if (prev === 'graph') return 'hnsw';
+                      return 'spheres';
+                    });
+                  }}
+                  sx={{
+                    width: 72,
+                    height: 24,
+                    borderRadius: 12,
+                    border: '2px solid',
+                    borderColor: 'primary.main',
+                    backgroundColor: visualizationMode === 'graph' ? 'primary.main' : visualizationMode === 'hnsw' ? 'primary.dark' : 'transparent',
+                    position: 'relative',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s',
+                    '&:hover': {
+                      opacity: 0.8,
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: '50%',
+                      backgroundColor: visualizationMode === 'spheres' ? 'primary.main' : '#001E2B',
+                      position: 'absolute',
+                      top: '50%',
+                      left: visualizationMode === 'spheres' 
+                        ? '2px' 
+                        : visualizationMode === 'graph'
+                        ? 'calc(50% - 9px)'
+                        : 'calc(100% - 20px)',
+                      transform: 'translateY(-50%)',
+                      transition: 'all 0.3s',
+                    }}
+                  />
+                </Box>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: visualizationMode === 'graph' ? 'primary.main' : 'text.secondary',
+                    fontSize: '0.75rem',
+                    minWidth: '50px',
+                    textAlign: 'center'
+                  }}
+                >
+                  Graph
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: visualizationMode === 'hnsw' ? 'primary.main' : 'text.secondary',
+                    fontSize: '0.75rem',
+                    minWidth: '50px',
+                    textAlign: 'center'
+                  }}
+                >
+                  HNSW
+                </Typography>
+              </Box>
+            </Box>
+          </Toolbar>
+        </AppBar>
+
+        <SemanticHopHUD
+          gameCode={gameCode}
+          roundNumber={roundNumber}
+          maxRounds={maxRounds}
+          timeRemaining={timeRemaining}
+          definition={definition}
+          onHop={handleHop}
+          bestSimilarity={bestSimilarity}
+          neighbors={neighbors}
+          relatedWords={relatedWords}
+          feedback={feedback}
+          guesses={guesses}
+          isGuessing={isGuessing}
+          hintUsed={hintUsed}
+          hintText={hintText}
+          onGetHint={handleGetHint}
+        />
+        <Leaderboard players={players} currentPlayerId={playerId} />
+        <Box
+          sx={{
+            position: 'absolute',
+            left: 400,
+            right: 0,
+            top: 64, // Account for header
+            bottom: 0,
+          }}
+        >
+          {words.length > 0 ? (
+            visualizationMode === 'spheres' ? (
+              <WordGraph3D
+                words={words}
+                currentNodeId={currentNodeId}
+                relatedWordIds={relatedWords.map((w) => w.wordId)}
+                onWordClick={handleWordClick}
+              />
+            ) : visualizationMode === 'graph' ? (
+              <WordGraphForceDirected
+                words={words}
+                currentNodeId={currentNodeId}
+                relatedWordIds={relatedWords.map((w) => w.wordId)}
+                onWordClick={handleWordClick}
+              />
+            ) : (
+              <WordGraphHNSW
+                words={words}
+                currentNodeId={currentNodeId}
+                relatedWordIds={relatedWords.map((w) => w.wordId)}
+                onWordClick={handleWordClick}
+              />
+            )
+          ) : (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'primary.main' }}>
+              <Typography>Loading words...</Typography>
+            </Box>
+          )}
+        </Box>
+        <Snackbar
+          open={toast.open}
+          autoHideDuration={6000}
+          onClose={handleCloseToast}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert onClose={handleCloseToast} severity={toast.severity} sx={{ width: '100%' }}>
+            {toast.message}
+          </Alert>
+        </Snackbar>
+      </Box>
+    </ThemeProvider>
+  );
+}
+

@@ -1,0 +1,437 @@
+'use client';
+
+import { useRef, useMemo, useEffect } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrbitControls, Text, Sphere } from '@react-three/drei';
+import * as THREE from 'three';
+import Starfield from './Starfield';
+
+function WordNode({ word, isCurrent, isRelated, onClick }) {
+  const meshRef = useRef();
+  const glowRef = useRef();
+
+  // MongoDB brand colors with enhanced visuals
+  // Balanced node sizes for good visibility
+  const baseColor = isCurrent ? '#00ED64' : isRelated ? '#FFB800' : '#00684A';
+  const glowColor = isCurrent ? '#00ED64' : isRelated ? '#FFB800' : '#00684A';
+  const baseScale = isCurrent ? 12 : isRelated ? 10 : 8; // Balanced sizes
+
+  useFrame((state) => {
+    if (meshRef.current) {
+      if (isCurrent) {
+        // Pulsing animation for current node
+        const pulse = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.15;
+        meshRef.current.scale.setScalar(baseScale * pulse);
+        if (glowRef.current) {
+          glowRef.current.scale.setScalar(baseScale * pulse * 1.2);
+        }
+      } else if (isRelated) {
+        // Subtle glow for related nodes
+        const glow = 1 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
+        if (glowRef.current) {
+          glowRef.current.scale.setScalar(baseScale * 1.3 * glow);
+        }
+      }
+      
+      // Slow rotation for visual interest
+      meshRef.current.rotation.y += 0.005;
+    }
+  });
+
+  // Ensure position is a valid array
+  const pos = Array.isArray(word.position) && word.position.length === 3
+    ? word.position
+    : [0, 0, 0];
+  
+  // Debug first few words
+  if (word.label && (word.label === 'database' || word.label === 'query' || word.label === 'index' || word.label === 'collection')) {
+    console.log('🟡 WordNode rendering:', word.label, 'at position', pos, 'id:', word.id);
+  }
+
+  return (
+    <group position={pos}>
+      {/* Glow effect for current and related nodes */}
+      {(isCurrent || isRelated) && (
+        <Sphere ref={glowRef} args={[baseScale * 1.2, 16, 16]}>
+          <meshStandardMaterial
+            color={glowColor}
+            emissive={glowColor}
+            emissiveIntensity={isCurrent ? 0.8 : 0.5}
+            transparent
+            opacity={0.2}
+          />
+        </Sphere>
+      )}
+      
+      {/* Main node sphere */}
+      <Sphere
+        ref={meshRef}
+        args={[baseScale, 32, 32]}
+        onClick={onClick}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = 'default';
+        }}
+      >
+        <meshStandardMaterial
+          color={baseColor}
+          emissive={isCurrent ? baseColor : isRelated ? glowColor : '#000000'}
+          emissiveIntensity={isCurrent ? 1.2 : isRelated ? 0.6 : 0}
+          metalness={0.8}
+          roughness={0.2}
+        />
+      </Sphere>
+      
+      {/* Word label with better styling */}
+      <Text
+        position={[0, baseScale + 3, 0]}
+        fontSize={3}
+        color={isCurrent ? '#00ED64' : '#FFFFFF'}
+        anchorX="center"
+        anchorY="middle"
+        outlineWidth={0.2}
+        outlineColor="#001E2B"
+      >
+        {word.label}
+      </Text>
+    </group>
+  );
+}
+
+function WordGraph({ words, currentNodeId, relatedWordIds, onWordClick }) {
+  console.log('🟢 WordGraph rendering', words.length, 'words');
+  
+  if (words.length === 0) {
+    console.warn('🔴 WordGraph: No words to render!');
+    return null;
+  }
+  
+  console.log('🟢 WordGraph: About to render', words.length, 'WordNode components');
+  
+  return (
+    <>
+      {words.map((word, index) => {
+        if (index < 5) {
+          console.log(`🟢 WordGraph: Creating WordNode ${index} for "${word.label}" at [${word.position.join(', ')}]`);
+        }
+        return (
+          <WordNode
+            key={word.id}
+            word={word}
+            isCurrent={word.id === currentNodeId}
+            isRelated={relatedWordIds?.includes(word.id)}
+            onClick={() => onWordClick(word)}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+// Camera controller component to handle hopping
+function CameraController({ currentNodeId, words, controlsRef }) {
+  const { camera } = useThree();
+  const targetPositionRef = useRef(null);
+  const isAnimatingRef = useRef(false);
+
+  useEffect(() => {
+    if (!currentNodeId || !words.length) {
+      console.log('🟡 CameraController: No currentNodeId or words, skipping hop', { currentNodeId, wordCount: words.length });
+      return;
+    }
+
+    // Find the current word - try both string and ObjectId comparison
+    const currentWord = words.find(w => {
+      const wordIdStr = typeof w.id === 'string' ? w.id : w.id?.toString();
+      const nodeIdStr = typeof currentNodeId === 'string' ? currentNodeId : currentNodeId?.toString();
+      return wordIdStr === nodeIdStr;
+    });
+    
+    if (!currentWord) {
+      console.warn('🔴 CameraController: Word not found in words array', {
+        currentNodeId,
+        wordIds: words.slice(0, 3).map(w => w.id),
+        wordLabels: words.slice(0, 3).map(w => w.label)
+      });
+      return;
+    }
+    
+    if (!currentWord.position || !Array.isArray(currentWord.position) || currentWord.position.length !== 3) {
+      console.warn('🔴 CameraController: Word has invalid position', {
+        label: currentWord.label,
+        position: currentWord.position
+      });
+      return;
+    }
+
+    const targetPos = currentWord.position;
+    const [targetX, targetY, targetZ] = targetPos;
+
+    // Calculate camera position - offset from the word to view it nicely
+    // Position camera slightly above and behind the word
+    const offsetDistance = 80; // Good distance for viewing larger nodes
+    const cameraX = targetX;
+    const cameraY = targetY + offsetDistance * 0.3; // Slightly above
+    const cameraZ = targetZ + offsetDistance; // Behind the word
+
+    targetPositionRef.current = [cameraX, cameraY, cameraZ];
+    isAnimatingRef.current = true;
+
+    console.log('🟢 CameraController: Hopping to word:', currentWord.label, 'at', targetPos, 'camera will be at', [cameraX, cameraY, cameraZ]);
+  }, [currentNodeId, words]);
+
+  useFrame((state, delta) => {
+    if (targetPositionRef.current && isAnimatingRef.current) {
+      const [targetX, targetY, targetZ] = targetPositionRef.current;
+      const currentPos = camera.position;
+      
+      // Smooth interpolation (easing)
+      const speed = 0.1;
+      const dx = targetX - currentPos.x;
+      const dy = targetY - currentPos.y;
+      const dz = targetZ - currentPos.z;
+      
+      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      
+      if (distance < 1) {
+        // Close enough, snap to position
+        camera.position.set(targetX, targetY, targetZ);
+        isAnimatingRef.current = false;
+        targetPositionRef.current = null;
+        
+        // Update controls target to look at the word, but allow free panning after
+        if (controlsRef.current) {
+          const currentWord = words.find(w => w.id === currentNodeId);
+          if (currentWord && currentWord.position) {
+            controlsRef.current.target.set(
+              currentWord.position[0],
+              currentWord.position[1],
+              currentWord.position[2]
+            );
+            // Update controls to allow free movement after hop
+            controlsRef.current.update();
+          }
+        }
+      } else {
+        // Smoothly move towards target
+        camera.position.x += dx * speed;
+        camera.position.y += dy * speed;
+        camera.position.z += dz * speed;
+        
+        // Update controls during animation
+        if (controlsRef.current) {
+          controlsRef.current.update();
+        }
+      }
+    }
+  });
+
+  return null;
+}
+
+export default function WordGraph3D({
+  words = [],
+  currentNodeId,
+  relatedWordIds = [],
+  onWordClick,
+}) {
+  const controlsRef = useRef();
+  
+  console.log('🔵 WordGraph3D rendered with', words.length, 'words');
+  
+  // Don't return null - always render the Canvas so we can see the starfield
+  // and debug what's happening
+  
+  // Log first word structure
+  if (words.length > 0) {
+    console.log('🔵 First word structure:', {
+      id: words[0].id,
+      label: words[0].label,
+      position: words[0].position,
+      hasPosition: !!words[0].position,
+      positionType: typeof words[0].position,
+      isArray: Array.isArray(words[0].position)
+    });
+  }
+  
+  const filteredWords = useMemo(() => {
+    console.log('🔵 WordGraph3D: Filtering words, input count:', words.length);
+    
+    // Filter out words with invalid positions
+    const validWords = words.filter(w => {
+      const pos = w.position;
+      const isValid = Array.isArray(pos) && 
+             pos.length === 3 && 
+             pos.every(p => typeof p === 'number' && isFinite(p));
+      
+      if (!isValid) {
+        console.warn('🔴 WordGraph3D: Invalid word position:', w.label, pos, {
+          isArray: Array.isArray(pos),
+          length: pos?.length,
+          types: pos?.map(p => typeof p)
+        });
+      }
+      
+      return isValid;
+    });
+    
+    console.log('🔵 WordGraph3D: Valid words after filtering:', validWords.length, 'out of', words.length);
+    
+    if (validWords.length === 0 && words.length > 0) {
+      console.error('🔴 WordGraph3D: All words have invalid positions!', words.slice(0, 3).map(w => ({
+        label: w.label,
+        position: w.position,
+        positionType: typeof w.position,
+        isArray: Array.isArray(w.position)
+      })));
+    } else if (validWords.length < words.length) {
+      console.warn(`🔴 WordGraph3D: ${words.length - validWords.length} words have invalid positions`);
+    }
+    
+    if (validWords.length > 0) {
+      console.log('🔵 WordGraph3D: Sample valid words:', validWords.slice(0, 3).map(w => ({
+        label: w.label,
+        position: w.position,
+        id: w.id
+      })));
+    }
+    
+    return validWords;
+  }, [words]);
+
+  // Calculate camera position to view all nodes
+  const cameraPosition = useMemo(() => {
+    if (filteredWords.length === 0) {
+      console.warn('🔴 WordGraph3D: No valid words to display, using default camera position');
+      // Default camera position that allows viewing the scene
+      return [0, 0, 2000];
+    }
+    
+    // Find bounding box of all nodes
+    const positions = filteredWords.map(w => w.position);
+    const xs = positions.map(p => p[0]).filter(x => isFinite(x));
+    const ys = positions.map(p => p[1]).filter(y => isFinite(y));
+    const zs = positions.map(p => p[2]).filter(z => isFinite(z));
+    
+    if (xs.length === 0 || ys.length === 0 || zs.length === 0) {
+      console.warn('🔴 WordGraph3D: No valid positions found');
+      return [0, 0, 100];
+    }
+    
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const minZ = Math.min(...zs);
+    const maxZ = Math.max(...zs);
+    
+    const centerX = (maxX + minX) / 2;
+    const centerY = (maxY + minY) / 2;
+    const centerZ = (maxZ + minZ) / 2;
+    
+    // Position camera to view the entire scene
+    const rangeX = maxX - minX;
+    const rangeY = maxY - minY;
+    const rangeZ = maxZ - minZ;
+    const maxRange = Math.max(rangeX, rangeY, rangeZ);
+    
+    // Position camera further back to see the full distribution
+    // Use a distance that ensures we can see everything
+    const distance = Math.max(maxRange * 1.5, 2000);
+    
+    const camPos = [centerX, centerY, centerZ + distance];
+    
+    console.log('🔵 WordGraph3D: Camera position calculated', {
+      wordCount: filteredWords.length,
+      bounds: { minX, maxX, minY, maxY, minZ, maxZ },
+      center: [centerX, centerY, centerZ],
+      ranges: { rangeX, rangeY, rangeZ },
+      maxRange,
+      distance,
+      cameraPos: camPos
+    });
+    
+    return camPos;
+  }, [filteredWords]);
+
+  return (
+    <Canvas
+      camera={{ 
+        position: cameraPosition, 
+        fov: 75,
+        near: 0.01, // Allow extremely close viewing
+        far: 100000, // Very large but finite value (Infinity can cause rendering issues)
+      }}
+      style={{ width: '100%', height: '100%', background: '#001E2B' }}
+    >
+      {/* Starfield background */}
+      <Starfield count={3000} radius={300} />
+      
+      {/* Enhanced lighting */}
+      <ambientLight intensity={0.3} />
+      <pointLight position={[20, 20, 20]} color="#00ED64" intensity={1.2} />
+      <pointLight position={[-20, -20, -20]} color="#00684A" intensity={0.8} />
+      <pointLight position={[0, 30, 0]} color="#00ED64" intensity={0.6} />
+      <directionalLight position={[10, 10, 5]} intensity={0.5} color="#FFFFFF" />
+      
+      {/* Fog for depth - adjusted for much larger scene, lighter fog for navigation */}
+      <fog attach="fog" args={['#001E2B', 500, 8000]} />
+      
+      <CameraController 
+        currentNodeId={currentNodeId} 
+        words={filteredWords}
+        controlsRef={controlsRef}
+      />
+      
+      {/* Debug indicator when no words */}
+      {filteredWords.length === 0 && (
+        <Text
+          position={[0, 0, 0]}
+          fontSize={20}
+          color="#FF0000"
+          anchorX="center"
+          anchorY="middle"
+        >
+          No words to display! Check console.
+        </Text>
+      )}
+      
+      <WordGraph
+        words={filteredWords}
+        currentNodeId={currentNodeId}
+        relatedWordIds={relatedWordIds}
+        onWordClick={onWordClick}
+      />
+      <OrbitControls
+        ref={controlsRef}
+        enablePan={true}
+        enableZoom={true}
+        enableRotate={true}
+        minDistance={0.1} // Allow zooming in extremely close
+        maxDistance={Infinity} // No maximum distance limit - can zoom out forever
+        autoRotate={false}
+        panSpeed={5.0} // Much faster panning for navigation
+        zoomSpeed={3.0} // Much faster zooming
+        rotateSpeed={1.0} // Smooth rotation
+        // Allow free movement - no target constraint
+        // Pan with right-click or middle mouse, rotate with left-click
+        screenSpacePanning={false} // Pan in world space, not screen space
+        // Full rotation freedom
+        minPolarAngle={0} // Allow looking straight up
+        maxPolarAngle={Math.PI} // Allow looking straight down
+        minAzimuthAngle={-Infinity} // No horizontal rotation limit
+        maxAzimuthAngle={Infinity} // No horizontal rotation limit
+        // No distance limits - can move anywhere
+        enableDamping={true} // Smooth movement
+        dampingFactor={0.05}
+        // Remove any target constraints - allow free panning anywhere
+        // Don't constrain to a target - allow free movement through space
+        makeDefault={true}
+      />
+    </Canvas>
+  );
+}
+

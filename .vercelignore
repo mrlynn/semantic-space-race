@@ -1,0 +1,9 @@
+# Files to ignore during Vercel deployment
+.cursor/
+.claude/
+*.swp
+*.swo
+*~
+.env.local
+.env
+debug.log

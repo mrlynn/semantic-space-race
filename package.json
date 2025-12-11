@@ -1,0 +1,39 @@
+{
+  "name": "semantic-hop",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "seed": "node scripts/seed-words.mjs",
+    "seed-semantic": "node scripts/seed-words-semantic.mjs",
+    "update-positions": "node scripts/update-positions.mjs",
+    "update-positions-semantic": "node scripts/update-positions-semantic.mjs",
+    "fix-positions": "node scripts/fix-positions.mjs",
+    "force-recalculate": "node scripts/force-recalculate-positions.mjs"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.13.0",
+    "@emotion/styled": "^11.13.0",
+    "@mui/icons-material": "^5.15.0",
+    "@mui/material": "^5.15.0",
+    "@react-three/drei": "^9.105.0",
+    "@react-three/fiber": "^8.16.0",
+    "mongoose": "^8.5.0",
+    "next": "^14.2.0",
+    "openai": "^4.47.0",
+    "pusher": "^5.2.0",
+    "pusher-js": "^8.4.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "three": "^0.164.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "dotenv": "^17.2.3",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.0"
+  }
+}
