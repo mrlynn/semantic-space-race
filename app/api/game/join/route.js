@@ -29,6 +29,8 @@ export async function POST(request) {
       nickname,
       ready: false,
       score: 0,
+      tokens: 15,
+      tokensOut: false,
     });
 
     await game.save();

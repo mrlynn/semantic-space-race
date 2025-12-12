@@ -8,6 +8,14 @@ const PlayerSchema = new mongoose.Schema({
   position: [Number],
   rotation: [Number],
   currentNodeId: String,
+  tokens: {
+    type: Number,
+    default: 15,
+  },
+  tokensOut: {
+    type: Boolean,
+    default: false,
+  },
 }, { _id: false });
 
 const GameSchema = new mongoose.Schema({
@@ -74,6 +82,15 @@ const GameSchema = new mongoose.Schema({
     type: String,
     default: 'general',
   },
+  vectorGems: [{
+    id: String,
+    position: [Number], // [x, y, z]
+    velocity: [Number], // [vx, vy, vz] - direction and speed
+    size: Number, // Size multiplier (0.5 to 2.0)
+    reward: Number, // Tokens to award (1-10)
+    spawnTime: Number, // Timestamp when spawned
+    hitBy: String, // playerId who hit it (null if not hit)
+  }],
 }, {
   timestamps: true,
 });

@@ -45,3 +45,4 @@ PlayerStatsSchema.index({ totalScore: -1, gamesWon: -1 });
 const PlayerStats = mongoose.models.PlayerStats || mongoose.model('PlayerStats', PlayerStatsSchema);
 
 export default PlayerStats;
+

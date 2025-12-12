@@ -15,9 +15,11 @@ import MongoDBLogo from '@/components/MongoDBLogo';
 import BrandShapes from '@/components/BrandShapes';
 import InviteFriends from '@/components/InviteFriends';
 import NavigationControls from '@/components/NavigationControls';
+import CountdownOverlay from '@/components/CountdownOverlay';
 import { celebrateCorrectGuess } from '@/lib/celebration';
 import { preloadAvatars } from '@/components/PlayerAvatar';
 import GameStatsScreen from '@/components/GameStatsScreen';
+import GameOverOverlay from '@/components/GameOverOverlay';
 
 export default function Home() {
   // Global error handler for production debugging
@@ -118,6 +120,9 @@ export default function Home() {
   const [hintText, setHintText] = useState('');
   const [visualizationMode, setVisualizationMode] = useState('hnsw');
   const [gameTopic, setGameTopic] = useState('general-database'); // 'spheres', 'graph', or 'hnsw'
+  const [tokens, setTokens] = useState(15);
+  const [isOut, setIsOut] = useState(false);
+  const [vectorGems, setVectorGems] = useState([]);
 
   // Mobile drawer state
   const [mobileHudOpen, setMobileHudOpen] = useState(false);
@@ -184,9 +189,20 @@ export default function Home() {
         setRelatedWords([]); // Reset related words
         setHintUsed(false); // Reset hint usage
         setHintText(''); // Reset hint text
-        // Update players with scores
+        // Reset tokens for new round
+        setTokens(15);
+        setIsOut(false);
+        // Clear vector gems for new round
+        setVectorGems([]);
+        // Update players with scores and tokens
         if (data.players) {
           setPlayers(data.players);
+          // Find current player and update their tokens
+          const currentPlayer = data.players.find(p => p.id === playerId);
+          if (currentPlayer) {
+            setTokens(currentPlayer.tokens !== undefined ? currentPlayer.tokens : 15);
+            setIsOut(currentPlayer.tokensOut || false);
+          }
         }
         
         // Client-side fallback: Auto-transition from TARGET_REVEAL to SEARCH
@@ -442,11 +458,113 @@ export default function Home() {
         }
       });
 
+      // Listen for token updates
+      channel.bind('player:tokens-updated', (data) => {
+        console.log('🔵 [CLIENT] player:tokens-updated received:', data, 'current local tokens:', tokens);
+        if (data.playerId === playerId) {
+          const newTokens = data.tokens !== undefined && data.tokens !== null ? data.tokens : 15;
+          console.log(`🔵 [CLIENT] Updating tokens from Pusher event: ${tokens} -> ${newTokens}`);
+          setTokens(newTokens);
+          setIsOut(data.tokensOut || false);
+        }
+        // Also update players array
+        setPlayers(prev => prev.map(p => 
+          p.id === data.playerId 
+            ? { ...p, tokens: data.tokens, tokensOut: data.tokensOut }
+            : p
+        ));
+      });
+
+      // Listen for player out event
+      channel.bind('player:out', (data) => {
+        console.log('🔵 [CLIENT] player:out received:', data);
+        if (data.playerId === playerId) {
+          setIsOut(true);
+        }
+        // Update players array
+        setPlayers(prev => prev.map(p => 
+          p.id === data.playerId 
+            ? { ...p, tokensOut: true }
+            : p
+        ));
+      });
+
+      // Listen for vector gem spawned event
+      channel.bind('vector-gem:spawned', (data) => {
+        console.log('💎 [CLIENT] vector-gem:spawned received:', data);
+        setVectorGems(prev => {
+          // Check if gem already exists
+          if (prev.find(g => g.id === data.gem.id)) {
+            console.log('💎 [CLIENT] Gem already exists, skipping:', data.gem.id);
+            return prev;
+          }
+          console.log('💎 [CLIENT] Adding new gem to state:', data.gem.id, 'Total gems:', prev.length + 1);
+          return [...prev, data.gem];
+        });
+      });
+
+      // Listen for vector gem hit event
+      channel.bind('vector-gem:hit', (data) => {
+        console.log('💎 [CLIENT] vector-gem:hit received:', data);
+        setVectorGems(prev => prev.filter(g => g.id !== data.gemId));
+        
+        // If another player hit it, show notification
+        if (data.playerId !== playerId) {
+          showToast(`${data.nickname} collected a Vector Gem! +${data.reward} tokens`, 'info');
+        }
+      });
+
+      // Listen for vector gem despawned event
+      channel.bind('vector-gem:despawned', (data) => {
+        console.log('💎 [CLIENT] vector-gem:despawned received:', data);
+        setVectorGems(prev => prev.filter(g => g.id !== data.gemId));
+      });
+
+      // Poll for gems periodically (since serverless setTimeout may not work)
+      const pollForGems = async () => {
+        if (!gameCode || !gameActive || roundPhase !== 'SEARCH') return;
+        
+        try {
+          const response = await fetch(`/api/game/gems?gameCode=${gameCode}`);
+          const data = await response.json();
+          
+          if (data.success && data.gems) {
+            // Update gems state - merge with existing, avoiding duplicates
+            setVectorGems(prev => {
+              const existingIds = new Set(prev.map(g => g.id));
+              const newGems = data.gems.filter(g => !existingIds.has(g.id));
+              if (newGems.length > 0) {
+                console.log('💎 [CLIENT] Polled and found new gems:', newGems.length, 'IDs:', newGems.map(g => g.id));
+              }
+              // Also remove gems that are no longer in the server response (hit or expired)
+              const serverGemIds = new Set(data.gems.map(g => g.id));
+              const filtered = prev.filter(g => serverGemIds.has(g.id));
+              const merged = [...filtered, ...newGems];
+              console.log('💎 [CLIENT] Polled gems - Server:', data.gems.map(g => g.id), 'Merged:', merged.map(g => g.id));
+              return merged;
+            });
+          }
+        } catch (error) {
+          console.error('Error polling for gems:', error);
+        }
+      };
+
+      // Poll every 5 seconds during SEARCH phase
+      let gemPollInterval = null;
+      if (gameActive && roundPhase === 'SEARCH') {
+        gemPollInterval = setInterval(pollForGems, 5000);
+        // Also poll immediately
+        pollForGems();
+      }
+
       return () => {
         pusher.unsubscribe(`game-${gameCode}`);
+        if (gemPollInterval) {
+          clearInterval(gemPollInterval);
+        }
       };
     }
-  }, [gameCode, playerId]);
+  }, [gameCode, playerId, gameActive, roundPhase]);
 
   // Timer countdown
   useEffect(() => {
@@ -627,19 +745,26 @@ export default function Home() {
     }
   };
 
-  const handleHop = async (wordLabel) => {
+  const handleHop = async (wordLabel, actionType = 'guess') => {
     console.log('🔵 [CLIENT] ========== handleHop CALLED ==========');
-    console.log('🔵 [CLIENT] handleHop params:', { wordLabel, gameActive, roundPhase, isGuessing, gameCode, playerId, hasGameCode: !!gameCode, hasPlayerId: !!playerId });
+    console.log('🔵 [CLIENT] handleHop params:', { wordLabel, gameActive, roundPhase, isGuessing, gameCode, playerId, hasGameCode: !!gameCode, hasPlayerId: !!playerId, tokens, isOut });
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:395',message:'handleHop called',data:{wordLabel,gameActive,roundPhase,isGuessing,gameCode,playerId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
     // #endregion
-    if (!gameActive || roundPhase !== 'SEARCH' || isGuessing) {
-      const reason = !gameActive ? 'game not active' : roundPhase !== 'SEARCH' ? `wrong phase: ${roundPhase}` : 'already guessing';
-      console.warn('🔴 [CLIENT] handleHop BLOCKED:', { reason, gameActive, roundPhase, isGuessing, expectedPhase: 'SEARCH' });
+    if (!gameActive || roundPhase !== 'SEARCH' || isGuessing || isOut) {
+      const reason = !gameActive ? 'game not active' : roundPhase !== 'SEARCH' ? `wrong phase: ${roundPhase}` : isOut ? 'you are out of tokens' : 'already guessing';
+      console.warn('🔴 [CLIENT] handleHop BLOCKED:', { reason, gameActive, roundPhase, isGuessing, isOut, expectedPhase: 'SEARCH' });
       showToast(`Cannot guess: ${reason}`, 'warning');
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:397',message:'handleHop: early return',data:{gameActive,roundPhase,isGuessing},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:397',message:'handleHop: early return',data:{gameActive,roundPhase,isGuessing,isOut},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
+      return;
+    }
+
+    // Check tokens based on action type
+    const requiredTokens = actionType === 'shoot' ? 2 : 3;
+    if (tokens < requiredTokens) {
+      showToast(`Insufficient tokens. You need ${requiredTokens} tokens but only have ${tokens}.`, 'warning');
       return;
     }
 
@@ -651,7 +776,7 @@ export default function Home() {
       const response = await fetch('/api/game/guess', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameCode, playerId, guess: wordLabel }),
+        body: JSON.stringify({ gameCode, playerId, guess: wordLabel, actionType }),
       }).catch((fetchError) => {
         console.error('🔴 [CLIENT] Fetch error (network/CORS):', fetchError);
         throw fetchError;
@@ -694,6 +819,14 @@ export default function Home() {
       fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:425',message:'handleHop: parsed response data',data:{success:data.success,correct:data.correct,similarity:data.similarity,wordId:data.wordId,label:data.label,inGraph:data.inGraph,error:data.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
       if (data.success) {
+        // Update tokens from response
+        if (data.tokens !== undefined) {
+          setTokens(data.tokens);
+        }
+        if (data.tokensOut !== undefined) {
+          setIsOut(data.tokensOut);
+        }
+        
         // Celebrate correct guess with confetti and sound!
         if (data.correct) {
           celebrateCorrectGuess();
@@ -986,10 +1119,16 @@ export default function Home() {
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:400',message:'handleGetHint called',data:{hintUsed,gameActive,roundPhase,gameCode,playerId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
     // #endregion
-    if (hintUsed || !gameActive || roundPhase !== 'SEARCH') {
+    if (hintUsed || !gameActive || roundPhase !== 'SEARCH' || isOut) {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:402',message:'handleGetHint: early return',data:{hintUsed,gameActive,roundPhase},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:402',message:'handleGetHint: early return',data:{hintUsed,gameActive,roundPhase,isOut},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
       // #endregion
+      return;
+    }
+
+    // Check tokens
+    if (tokens < 5) {
+      showToast(`Insufficient tokens. You need 5 tokens but only have ${tokens}.`, 'warning');
       return;
     }
 
@@ -1009,6 +1148,13 @@ export default function Home() {
       if (data.success) {
         setHintUsed(true);
         setHintText(data.hint || '');
+        // Update tokens from response
+        if (data.tokens !== undefined) {
+          setTokens(data.tokens);
+        }
+        if (data.tokensOut !== undefined) {
+          setIsOut(data.tokensOut);
+        }
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.js:412',message:'handleGetHint: setting hint text',data:{hintTextLength:data.hint?.length || 0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
         // #endregion
@@ -1033,7 +1179,111 @@ export default function Home() {
   };
 
   const handleWordClick = (word) => {
-    handleHop(word.label);
+    handleHop(word.label, 'shoot');
+  };
+
+  const handleGemHit = async (gem) => {
+    // Handle both gem object and gemId string for flexibility
+    console.log('💎 [CLIENT] handleGemHit called with:', gem, 'type:', typeof gem);
+    
+    let gemId;
+    if (typeof gem === 'string') {
+      gemId = gem;
+    } else if (gem && typeof gem === 'object') {
+      gemId = gem.id;
+      console.log('💎 [CLIENT] Extracted gemId from object:', gemId, 'Full gem object:', JSON.stringify(gem));
+    } else {
+      console.error('💎 [CLIENT] handleGemHit: Invalid gem parameter', gem);
+      showToast('Invalid gem data', 'error');
+      return;
+    }
+    
+    if (!gameCode || !playerId || !gemId) {
+      console.error('💎 [CLIENT] handleGemHit: Missing params', { gameCode, playerId, gemId, gemType: typeof gem, gem });
+      showToast('Missing game information', 'error');
+      return;
+    }
+    
+    console.log('💎 [CLIENT] Processing gem hit:', { gemId, gameCode, playerId });
+    if (!gameActive || roundPhase !== 'SEARCH') {
+      console.warn('💎 [CLIENT] handleGemHit: Game not active or wrong phase', { gameActive, roundPhase });
+      return;
+    }
+    if (isOut) {
+      console.warn('💎 [CLIENT] handleGemHit: Player is out');
+      showToast('You are out of tokens and cannot shoot', 'warning');
+      return;
+    }
+
+    console.log('💎 [CLIENT] handleGemHit called:', { gemId, gem, currentTokens: tokens });
+
+    try {
+      const response = await fetch('/api/game/hit-gem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameCode, playerId, gemId }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('💎 [CLIENT] hit-gem API error:', response.status, errorText);
+        try {
+          const errorData = JSON.parse(errorText);
+          showToast(errorData.error || 'Failed to hit Vector Gem', 'error');
+        } catch {
+          showToast(`Failed to hit Vector Gem: ${response.status}`, 'error');
+        }
+        return;
+      }
+
+      const data = await response.json();
+      console.log('💎 [CLIENT] hit-gem API response:', data);
+      
+      if (data.success) {
+        // Update tokens from response - do this immediately before Pusher event might override
+        const tokensBefore = tokens;
+        if (data.tokens !== undefined && data.tokens !== null) {
+          console.log(`💎 [CLIENT] Updating tokens from API response: ${tokensBefore} -> ${data.tokens} (+${data.reward})`);
+          
+          // Store the API token value to compare with Pusher events
+          const apiTokenValue = data.tokens;
+          
+          // Update state immediately
+          setTokens(apiTokenValue);
+          
+          // Also update in players array for consistency
+          setPlayers(prev => prev.map(p => 
+            p.id === playerId 
+              ? { ...p, tokens: apiTokenValue, tokensOut: data.tokensOut || false }
+              : p
+          ));
+          
+          // Verify the update was applied
+          setTimeout(() => {
+            console.log(`💎 [CLIENT] Token verification after ${apiTokenValue}ms: Expected ${apiTokenValue}`);
+          }, 50);
+        }
+        if (data.tokensOut !== undefined) {
+          setIsOut(data.tokensOut);
+        }
+        
+        // Show success notification with current token count
+        showToast(`💎 Vector Gem collected! +${data.reward} tokens! (Total: ${data.tokens})`, 'success');
+        
+        // Remove gem from local state
+        setVectorGems(prev => {
+          const filtered = prev.filter(g => g.id !== gemId);
+          console.log(`💎 [CLIENT] Removed gem ${gemId} from state. Remaining gems: ${filtered.length}`);
+          return filtered;
+        });
+      } else {
+        console.error('💎 [CLIENT] hit-gem failed:', data.error);
+        showToast(data.error || 'Failed to hit Vector Gem', 'error');
+      }
+    } catch (error) {
+      console.error('💎 [CLIENT] Error hitting vector gem:', error);
+      showToast('Failed to hit Vector Gem', 'error');
+    }
   };
 
   const handleReturnToLobby = () => {
@@ -1295,6 +1545,7 @@ export default function Home() {
           players={players}
           onMarkReady={handleMarkReady}
           currentTarget={currentTarget}
+          tokens={tokens}
         />
         <Leaderboard
           players={players}
@@ -1350,6 +1601,7 @@ export default function Home() {
             bottom: { xs: 80, md: 0 }, // Account for FABs on mobile
           }}
         >
+          {gameActive && <GameOverOverlay isOut={isOut} />}
           {words.length > 0 ? (
             visualizationMode === 'spheres' ? (
               <WordGraph3D
@@ -1357,6 +1609,8 @@ export default function Home() {
                 currentNodeId={currentNodeId}
                 relatedWordIds={relatedWords.map((w) => w.wordId)}
                 onWordClick={handleWordClick}
+                vectorGems={vectorGems}
+                onGemHit={handleGemHit}
                 themeMode={themeMode}
                 onCameraControlsReady={setCameraControls}
               />
@@ -1366,6 +1620,8 @@ export default function Home() {
                 currentNodeId={currentNodeId}
                 relatedWordIds={relatedWords.map((w) => w.wordId)}
                 onWordClick={handleWordClick}
+                vectorGems={vectorGems}
+                onGemHit={handleGemHit}
                 themeMode={themeMode}
                 onCameraControlsReady={setCameraControls}
               />
@@ -1375,6 +1631,8 @@ export default function Home() {
                 currentNodeId={currentNodeId}
                 relatedWordIds={relatedWords.map((w) => w.wordId)}
                 onWordClick={handleWordClick}
+                vectorGems={vectorGems}
+                onGemHit={handleGemHit}
                 themeMode={themeMode}
                 onCameraControlsReady={setCameraControls}
                 players={players}
@@ -1401,6 +1659,14 @@ export default function Home() {
             onMoveBackward={cameraControls.moveBackward}
             onReset={cameraControls.reset}
             position="bottom-right"
+          />
+        )}
+
+        {/* Countdown Overlay - Shows when round is about to expire */}
+        {gameCode && gameActive && roundPhase === 'SEARCH' && timeRemaining !== null && (
+          <CountdownOverlay
+            timeRemaining={timeRemaining}
+            threshold={10000}
           />
         )}
 

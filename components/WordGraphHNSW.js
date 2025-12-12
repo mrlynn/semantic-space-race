@@ -9,6 +9,8 @@ import { cosineSimilarity } from '@/lib/utils';
 import ShootingSystem from './ShootingSystem';
 import Crosshair from './Crosshair';
 import OtherPlayers from './OtherPlayers';
+import VectorGem from './VectorGem';
+import { TextField, Button, Paper, Box, List, ListItem, ListItemButton, ListItemText, Typography } from '@mui/material';
 
 // Semantic Proximity Controller - adjusts positions based on semantic similarity
 function SemanticProximityController({ words, positions, setPositions, enabled = true, strength = 0.4 }) {
@@ -937,11 +939,100 @@ function NavigationHelper({ onControlsReady, controlsRef, cameraRef }) {
   return null;
 }
 
+// Search Navigation Controller - handles camera navigation to searched words
+function SearchNavigationController({ searchedWordId, words, nodePositions, controlsRef }) {
+  const { camera } = useThree();
+  const targetPositionRef = useRef(null);
+  const isAnimatingRef = useRef(false);
+  const lastSearchedWordIdRef = useRef(null);
+
+  useEffect(() => {
+    if (!searchedWordId || !words.length) {
+      return;
+    }
+    if (lastSearchedWordIdRef.current === searchedWordId) {
+      return;
+    }
+    lastSearchedWordIdRef.current = searchedWordId;
+    const searchedWord = words.find(w => {
+      const wordIdStr = typeof w.id === 'string' ? w.id : w.id?.toString();
+      const searchedIdStr = typeof searchedWordId === 'string' ? searchedWordId : searchedWordId?.toString();
+      return wordIdStr === searchedIdStr;
+    });
+    if (!searchedWord) return;
+    const wordPos = nodePositions?.[searchedWord.id] || searchedWord.position;
+    if (!wordPos || !Array.isArray(wordPos) || wordPos.length !== 3) return;
+    const [targetX, targetY, targetZ] = wordPos;
+    let nearbyWordCount = 0;
+    const clusterDetectionRadius = 500;
+    words.forEach(word => {
+      const checkPos = nodePositions?.[word.id] || word.position;
+      if (!checkPos || !Array.isArray(checkPos) || checkPos.length !== 3) return;
+      const dx = checkPos[0] - targetX;
+      const dy = checkPos[1] - targetY;
+      const dz = checkPos[2] - targetZ;
+      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (distance < clusterDetectionRadius && distance > 0.1) {
+        nearbyWordCount++;
+      }
+    });
+    const baseOffsetDistance = 250;
+    const clusterOffset = Math.min(350, nearbyWordCount * 50);
+    const offsetDistance = baseOffsetDistance + clusterOffset;
+    const cameraX = targetX;
+    const cameraY = targetY + offsetDistance * 0.3;
+    const cameraZ = targetZ + offsetDistance;
+    targetPositionRef.current = [cameraX, cameraY, cameraZ];
+    isAnimatingRef.current = true;
+  }, [searchedWordId, words, nodePositions]);
+
+  useFrame(() => {
+    if (targetPositionRef.current && isAnimatingRef.current) {
+      const [targetX, targetY, targetZ] = targetPositionRef.current;
+      const currentPos = camera.position;
+      const speed = 0.1;
+      const dx = targetX - currentPos.x;
+      const dy = targetY - currentPos.y;
+      const dz = targetZ - currentPos.z;
+      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (distance < 1) {
+        camera.position.set(targetX, targetY, targetZ);
+        isAnimatingRef.current = false;
+        targetPositionRef.current = null;
+        if (controlsRef.current && searchedWordId) {
+          const searchedWord = words.find(w => {
+            const wordIdStr = typeof w.id === 'string' ? w.id : w.id?.toString();
+            const searchedIdStr = typeof searchedWordId === 'string' ? searchedWordId : searchedWordId?.toString();
+            return wordIdStr === searchedIdStr;
+          });
+          if (searchedWord) {
+            const wordPos = nodePositions?.[searchedWord.id] || searchedWord.position;
+            if (wordPos) {
+              controlsRef.current.target.set(wordPos[0], wordPos[1], wordPos[2]);
+              controlsRef.current.update();
+            }
+          }
+        }
+      } else {
+        camera.position.x += dx * speed;
+        camera.position.y += dy * speed;
+        camera.position.z += dz * speed;
+        if (controlsRef.current) {
+          controlsRef.current.update();
+        }
+      }
+    }
+  });
+  return null;
+}
+
 export default function WordGraphHNSW({
   words = [],
   currentNodeId,
   relatedWordIds = [],
   onWordClick,
+  vectorGems = [],
+  onGemHit = null,
   semanticProximityEnabled = true,
   themeMode = 'dark',
   semanticProximityStrength = 0.4,
@@ -959,6 +1050,8 @@ export default function WordGraphHNSW({
   const [hoveredHub, setHoveredHub] = useState(null);
   const [semanticPositions, setSemanticPositions] = useState({});
   const [playerPosition, setPlayerPosition] = useState({ position: [0, 0, 0], word: null });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchedWordId, setSearchedWordId] = useState(null);
 
   // Filter valid words
   const filteredWords = useMemo(() => {
@@ -967,6 +1060,24 @@ export default function WordGraphHNSW({
       return Array.isArray(pos) && pos.length === 3 && pos.every(p => typeof p === 'number' && isFinite(p));
     });
   }, [words]);
+
+  // Search results
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const query = searchQuery.toLowerCase();
+    return filteredWords
+      .filter(word => {
+        const label = word.label?.toLowerCase() || '';
+        return label.includes(query);
+      })
+      .slice(0, 10)
+      .sort((a, b) => {
+        const aIndex = a.label.toLowerCase().indexOf(query);
+        const bIndex = b.label.toLowerCase().indexOf(query);
+        if (aIndex !== bIndex) return aIndex - bIndex;
+        return a.label.localeCompare(b.label);
+      });
+  }, [searchQuery, filteredWords]);
 
   // Initialize semantic positions from word positions
   const previousWordsRef = useRef(new Set());
@@ -1281,6 +1392,13 @@ export default function WordGraphHNSW({
         controlsRef={controlsRef}
       />
 
+      <SearchNavigationController
+        searchedWordId={searchedWordId}
+        words={filteredWords}
+        nodePositions={adjustedPositions}
+        controlsRef={controlsRef}
+      />
+
       <PlayerPositionTracker
         words={filteredWords}
         currentNodeId={currentNodeId}
@@ -1315,13 +1433,40 @@ export default function WordGraphHNSW({
         onHubHover={setHoveredHub}
       />
 
-      {/* Shooting System - allows firing bullets at words */}
+      {/* Render Vector Gems */}
+      {vectorGems.map(gem => {
+        // Only render active gems (not hit, not expired)
+        const now = Date.now();
+        const age = now - gem.spawnTime;
+        if (gem.hitBy) {
+          console.log('💎 [RENDER] Gem already hit, skipping:', gem.id);
+          return null;
+        }
+        if (age >= 30000) {
+          console.log('💎 [RENDER] Gem expired, skipping:', gem.id, 'age:', age);
+          return null;
+        }
+        
+        console.log('💎 [RENDER] Rendering gem:', gem.id, 'position:', gem.position, 'age:', age);
+        return (
+          <VectorGem
+            key={gem.id}
+            gem={gem}
+            onHit={onGemHit}
+            themeMode={themeMode}
+          />
+        );
+      })}
+
+      {/* Shooting System - allows firing bullets at words and gems */}
       <ShootingSystem
         words={filteredWords.map(word => ({
           ...word,
           position: adjustedPositions[word.id] || word.position
         }))}
         onWordHit={onWordClick}
+        vectorGems={vectorGems}
+        onGemHit={onGemHit}
         enabled={true}
         themeMode={themeMode}
       />
@@ -1359,6 +1504,152 @@ export default function WordGraphHNSW({
       </Canvas>
       
       <Crosshair themeMode={themeMode} />
+      
+      {/* Word Search Box */}
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 16,
+          right: 16,
+          width: { xs: '280px', sm: '320px' },
+          zIndex: 1000,
+        }}
+      >
+        <Paper
+          elevation={6}
+          sx={{
+            p: 2,
+            borderRadius: 0,
+            background: themeMode === 'dark'
+              ? 'linear-gradient(135deg, rgba(0, 104, 74, 0.4) 0%, rgba(2, 52, 48, 0.95) 100%)'
+              : 'linear-gradient(135deg, rgba(0, 237, 100, 0.1) 0%, rgba(255, 255, 255, 0.95) 100%)',
+            backdropFilter: 'blur(20px)',
+            border: '3px solid',
+            borderColor: 'primary.main',
+            boxShadow: '6px 6px 0px rgba(0, 237, 100, 0.3)',
+            imageRendering: 'pixelated',
+          }}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (searchResults.length > 0) {
+                setSearchedWordId(searchResults[0].id);
+                setSearchQuery('');
+              }
+            }}
+          >
+            <TextField
+              fullWidth
+              size="small"
+              label="Search words"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              variant="outlined"
+              placeholder="Type to search..."
+              sx={{
+                mb: 1,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 0,
+                  borderWidth: '2px',
+                  fontSize: '0.875rem',
+                  fontFamily: '"Euclid Circular A", sans-serif',
+                  '& fieldset': {
+                    borderWidth: '2px',
+                  },
+                },
+              }}
+            />
+            <Button
+              type="submit"
+              variant="contained"
+              size="small"
+              fullWidth
+              disabled={searchResults.length === 0}
+              sx={{
+                borderRadius: 0,
+                border: '2px solid',
+                borderColor: 'primary.dark',
+                boxShadow: '3px 3px 0px rgba(0, 0, 0, 0.3)',
+                fontFamily: '"PressStart2PRegular", monospace',
+                fontSize: '0.625rem',
+                py: 1,
+              }}
+            >
+              Navigate
+            </Button>
+          </form>
+
+          {searchQuery.trim() && searchResults.length > 0 && (
+            <Paper
+              elevation={4}
+              sx={{
+                mt: 1,
+                maxHeight: '300px',
+                overflow: 'auto',
+                borderRadius: 0,
+                border: '2px solid',
+                borderColor: 'primary.main',
+                backgroundColor: themeMode === 'dark' ? 'rgba(2, 52, 48, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+                boxShadow: '4px 4px 0px rgba(0, 0, 0, 0.2)',
+              }}
+            >
+              <List dense sx={{ p: 0 }}>
+                {searchResults.map((word, index) => (
+                  <ListItem
+                    key={word.id || index}
+                    disablePadding
+                    sx={{
+                      borderBottom: index < searchResults.length - 1 ? '1px solid' : 'none',
+                      borderColor: 'divider',
+                    }}
+                  >
+                    <ListItemButton
+                      onClick={() => {
+                        setSearchedWordId(word.id);
+                        setSearchQuery('');
+                      }}
+                      sx={{
+                        borderRadius: 0,
+                        py: 1,
+                        '&:hover': {
+                          backgroundColor: themeMode === 'dark'
+                            ? 'rgba(0, 237, 100, 0.2)'
+                            : 'rgba(0, 237, 100, 0.1)',
+                        },
+                      }}
+                    >
+                      <ListItemText
+                        primary={word.label}
+                        primaryTypographyProps={{
+                          fontSize: '0.875rem',
+                          fontFamily: '"Euclid Circular A", sans-serif',
+                        }}
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+              </List>
+            </Paper>
+          )}
+
+          {searchQuery.trim() && searchResults.length === 0 && (
+            <Typography
+              variant="body2"
+              sx={{
+                mt: 1,
+                p: 1,
+                textAlign: 'center',
+                color: 'text.secondary',
+                fontSize: '0.75rem',
+                fontFamily: '"Euclid Circular A", sans-serif',
+              }}
+            >
+              No words found
+            </Typography>
+          )}
+        </Paper>
+      </Box>
       
       {/* Player Position Display */}
       <div

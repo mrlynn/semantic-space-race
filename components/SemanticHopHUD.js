@@ -45,6 +45,7 @@ export default function SemanticHopHUD({
   players = [],
   onMarkReady = null,
   currentTarget = null,
+  tokens = 15,
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -211,33 +212,176 @@ export default function SemanticHopHUD({
         </Box>
       )}
 
-      {/* Game Info */}
+      {/* Combined Game Info & Tokens */}
       <Paper elevation={3} sx={{
         p: 2.5,
         mb: 2.5,
         border: '3px solid',
-        borderColor: 'primary.main',
+        borderColor: tokens < 5 ? 'warning.main' : 'primary.main',
         borderRadius: 0, // Sharp corners for 8-bit look
-        background: paperGradient,
+        background: tokens < 5 ? warningGradient : paperGradient,
         boxShadow: '6px 6px 0px rgba(0, 0, 0, 0.3)',
-        imageRendering: 'pixelated',
-        imageRendering: '-moz-crisp-edges',
-        imageRendering: 'crisp-edges',
         position: 'relative',
         overflow: 'hidden',
       }}>
         <BrandShapeDecoration position="top-right" size={100} opacity={brandShapeOpacity.medium} shapeNumber={3} />
-        <Typography variant="h6" gutterBottom color="primary" sx={{ position: 'relative', zIndex: 1 }}>
-          Game Code: {gameCode}
-        </Typography>
-        <Typography variant="body1" gutterBottom>
-          Round {roundNumber}/{maxRounds}
-        </Typography>
-        {timeRemaining !== null && (
-          <Typography variant="body2" color="text.secondary">
-            Time: {Math.ceil(timeRemaining / 1000)}s
+        <BrandShapeDecoration 
+          position="bottom-left" 
+          size={80} 
+          opacity={brandShapeOpacity.medium} 
+          shapeNumber={7} 
+          color={tokens < 5 ? 'warning' : 'primary'}
+        />
+        
+        {/* Game Info Section */}
+        <Box sx={{ position: 'relative', zIndex: 1, mb: 2.5 }}>
+          <Typography variant="h6" gutterBottom color="primary" sx={{ fontWeight: 700 }}>
+            Game Code: {gameCode}
           </Typography>
-        )}
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Typography variant="body1" sx={{ fontWeight: 600 }}>
+              Round {roundNumber}/{maxRounds}
+            </Typography>
+            {timeRemaining !== null && (
+              <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 600 }}>
+                Time: {Math.ceil(timeRemaining / 1000)}s
+              </Typography>
+            )}
+          </Box>
+        </Box>
+
+        {/* Divider */}
+        <Box sx={{ 
+          height: '2px', 
+          bgcolor: tokens < 5 ? 'warning.main' : 'primary.main', 
+          mb: 2.5,
+          position: 'relative',
+          zIndex: 1,
+          opacity: 0.5,
+        }} />
+
+        {/* Tokens Section - Enhanced Visual Design */}
+        <Box sx={{ position: 'relative', zIndex: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box sx={{
+                width: 40,
+                height: 40,
+                borderRadius: 0,
+                border: '3px solid',
+                borderColor: tokens < 5 ? 'warning.main' : 'primary.main',
+                bgcolor: isDark 
+                  ? (tokens < 5 ? 'rgba(255, 192, 16, 0.2)' : 'rgba(0, 237, 100, 0.2)')
+                  : (tokens < 5 ? 'rgba(255, 192, 16, 0.1)' : 'rgba(0, 237, 100, 0.1)'),
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 900,
+                fontSize: '1.5rem',
+                color: tokens < 5 ? 'warning.main' : 'primary.main',
+              }}>
+                {tokens}
+              </Box>
+              <Box>
+                <Typography 
+                  variant="h5" 
+                  color={tokens < 5 ? 'warning.main' : 'primary.main'} 
+                  sx={{ fontWeight: 900, lineHeight: 1.2 }}
+                >
+                  TOKENS
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                  {tokens === 15 ? 'Full' : tokens === 0 ? 'Out!' : `${15 - tokens} used`}
+                </Typography>
+              </Box>
+            </Box>
+            {tokens < 5 && (
+              <Chip 
+                label="LOW!" 
+                color="warning" 
+                size="small"
+                sx={{ fontWeight: 900, fontSize: '0.75rem', height: 24 }}
+              />
+            )}
+          </Box>
+
+          {/* Token Usage Costs - Visual Grid */}
+          <Box sx={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(3, 1fr)', 
+            gap: 1.5,
+            mt: 2,
+          }}>
+            {/* Shooting Cost */}
+            <Box sx={{
+              p: 1.5,
+              borderRadius: 0,
+              border: '2px solid',
+              borderColor: tokens < 2 ? 'error.main' : 'primary.main',
+              bgcolor: isDark 
+                ? (tokens < 2 ? 'rgba(255, 0, 0, 0.1)' : 'rgba(0, 237, 100, 0.1)')
+                : (tokens < 2 ? 'rgba(255, 0, 0, 0.05)' : 'rgba(0, 237, 100, 0.05)'),
+              textAlign: 'center',
+            }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontSize: '0.65rem' }}>
+                SHOOT
+              </Typography>
+              <Typography 
+                variant="h6" 
+                color={tokens < 2 ? 'error.main' : 'primary.main'}
+                sx={{ fontWeight: 900, lineHeight: 1 }}
+              >
+                2
+              </Typography>
+            </Box>
+
+            {/* Hop Cost */}
+            <Box sx={{
+              p: 1.5,
+              borderRadius: 0,
+              border: '2px solid',
+              borderColor: tokens < 3 ? 'error.main' : 'primary.main',
+              bgcolor: isDark 
+                ? (tokens < 3 ? 'rgba(255, 0, 0, 0.1)' : 'rgba(0, 237, 100, 0.1)')
+                : (tokens < 3 ? 'rgba(255, 0, 0, 0.05)' : 'rgba(0, 237, 100, 0.05)'),
+              textAlign: 'center',
+            }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontSize: '0.65rem' }}>
+                HOP
+              </Typography>
+              <Typography 
+                variant="h6" 
+                color={tokens < 3 ? 'error.main' : 'primary.main'}
+                sx={{ fontWeight: 900, lineHeight: 1 }}
+              >
+                3
+              </Typography>
+            </Box>
+
+            {/* Hint Cost */}
+            <Box sx={{
+              p: 1.5,
+              borderRadius: 0,
+              border: '2px solid',
+              borderColor: tokens < 5 ? 'error.main' : 'primary.main',
+              bgcolor: isDark 
+                ? (tokens < 5 ? 'rgba(255, 0, 0, 0.1)' : 'rgba(0, 237, 100, 0.1)')
+                : (tokens < 5 ? 'rgba(255, 0, 0, 0.05)' : 'rgba(0, 237, 100, 0.05)'),
+              textAlign: 'center',
+            }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontSize: '0.65rem' }}>
+                HINT
+              </Typography>
+              <Typography 
+                variant="h6" 
+                color={tokens < 5 ? 'error.main' : 'primary.main'}
+                sx={{ fontWeight: 900, lineHeight: 1 }}
+              >
+                5
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
       </Paper>
 
       {/* Riddle/Definition */}
@@ -398,7 +542,7 @@ export default function SemanticHopHUD({
             type="submit" 
             variant="contained" 
             fullWidth
-            disabled={isGuessing || !guess.trim() || !onHop}
+            disabled={isGuessing || !guess.trim() || !onHop || tokens < 3}
             onClick={handleButtonClick}
             sx={{ position: 'relative' }}
           >
@@ -407,8 +551,10 @@ export default function SemanticHopHUD({
                 <CircularProgress size={20} color="inherit" />
                 <Typography>Processing...</Typography>
               </Box>
+            ) : tokens < 3 ? (
+              `Hop (Need 3 tokens, have ${tokens})`
             ) : (
-              'Hop'
+              'Hop (3 tokens)'
             )}
           </Button>
         </form>
@@ -630,9 +776,9 @@ export default function SemanticHopHUD({
                   console.error('🔴 [HUD] onGetHint is not a function:', onGetHint);
                 }
               }}
-              disabled={isGuessing}
+              disabled={isGuessing || tokens < 5}
             >
-              Get Hint (-3 pts)
+              {tokens < 5 ? `Get Hint (Need 5, have ${tokens})` : 'Get Hint (5 tokens, -3 pts)'}
             </Button>
           )}
           {hintUsed && (

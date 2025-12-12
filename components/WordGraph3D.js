@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import Starfield from './Starfield';
 import ShootingSystem from './ShootingSystem';
 import Crosshair from './Crosshair';
+import VectorGem from './VectorGem';
 
 function WordNode({ word, isCurrent, isRelated, onClick, themeMode = 'dark' }) {
   const meshRef = useRef();
@@ -365,6 +366,8 @@ export default function WordGraph3D({
   currentNodeId,
   relatedWordIds = [],
   onWordClick,
+  vectorGems = [],
+  onGemHit = null,
   themeMode = 'dark',
   onCameraControlsReady = null,
 }) {
@@ -549,10 +552,26 @@ export default function WordGraph3D({
         themeMode={themeMode}
       />
       
-      {/* Shooting System - allows firing bullets at words */}
+      {/* Render Vector Gems */}
+      {vectorGems.map(gem => {
+        const now = Date.now();
+        if (gem.hitBy || (now - gem.spawnTime) >= 30000) return null;
+        return (
+          <VectorGem
+            key={gem.id}
+            gem={gem}
+            onHit={onGemHit}
+            themeMode={themeMode}
+          />
+        );
+      })}
+
+      {/* Shooting System - allows firing bullets at words and gems */}
       <ShootingSystem
         words={filteredWords}
         onWordHit={onWordClick}
+        vectorGems={vectorGems}
+        onGemHit={onGemHit}
         enabled={true}
         themeMode={themeMode}
       />

@@ -59,10 +59,27 @@ export async function POST(request) {
       );
     }
 
+    // Check if player is out of tokens
+    if (game.isPlayerOut(playerId)) {
+      return NextResponse.json(
+        { success: false, error: 'You are out of tokens for this round' },
+        { status: 400 }
+      );
+    }
+
     // Check if player already used hint this round
     if (player.hintUsed) {
       return NextResponse.json(
         { success: false, error: 'Hint already used this round' },
+        { status: 400 }
+      );
+    }
+
+    // Deduct tokens for getting a hint (5 tokens)
+    const tokenDeduction = game.deductTokens(playerId, 5);
+    if (!tokenDeduction.success) {
+      return NextResponse.json(
+        { success: false, error: tokenDeduction.error, tokens: tokenDeduction.tokens },
         { status: 400 }
       );
     }
@@ -92,11 +109,29 @@ export async function POST(request) {
     
     await game.save();
 
+    // Emit token update event
+    const updatedPlayer = game.getPlayer(playerId);
+    await pusher.trigger(`game-${game.gameCode}`, 'player:tokens-updated', {
+      playerId,
+      tokens: updatedPlayer.tokens,
+      tokensOut: updatedPlayer.tokensOut,
+    });
+
+    // If player ran out of tokens, emit player:out event
+    if (tokenDeduction.tokensOut) {
+      await pusher.trigger(`game-${game.gameCode}`, 'player:out', {
+        playerId,
+        nickname: player.nickname,
+      });
+    }
+
     return NextResponse.json({
       success: true,
       hint: hintText,
       penalty: hintPenalty,
-      newScore: game.getPlayer(playerId).score,
+      newScore: updatedPlayer.score,
+      tokens: updatedPlayer.tokens,
+      tokensOut: updatedPlayer.tokensOut,
     });
   } catch (error) {
     console.error('Error getting hint:', error);

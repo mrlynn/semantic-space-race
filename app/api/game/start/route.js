@@ -66,6 +66,9 @@ export async function POST(request) {
       game.players.set(player.id, player);
     });
 
+    // Clear vector gems when starting game
+    game.clearVectorGems();
+
     // Load words filtered by topic if not already loaded
     if (game.wordNodes.length === 0) {
       console.log(`Loading words from database for topic: ${game.topic || 'general-database'}...`);

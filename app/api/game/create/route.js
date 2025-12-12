@@ -38,6 +38,8 @@ export async function POST(request) {
       nickname,
       ready: false,
       score: 0,
+      tokens: 15,
+      tokensOut: false,
     });
 
     // Save to database

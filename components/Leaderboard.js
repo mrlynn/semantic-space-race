@@ -377,7 +377,9 @@ export default function Leaderboard({
       sx={{
         position: 'absolute',
         right: 16,
-        top: 80,
+        top: { md: 228, lg: 208 },
+        maxHeight: 'calc(100vh - 280px)',
+        overflowY: 'auto',
         zIndex: 1000,
         display: { xs: 'none', md: 'block' },
       }}

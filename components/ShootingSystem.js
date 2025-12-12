@@ -52,15 +52,15 @@ function Bullet({ start, end, onComplete, color = '#00ED64' }) {
 }
 
 // Hit effect component
-function HitEffect({ position, onComplete }) {
+function HitEffect({ position, onComplete, isGem = false }) {
   const meshRef = useRef();
   const [scale, setScale] = useState(1);
   const [opacity, setOpacity] = useState(1);
-  const duration = 0.5;
+  const duration = isGem ? 0.8 : 0.5; // Longer duration for gem hits
 
   useFrame((state, delta) => {
     if (opacity > 0) {
-      const newScale = scale + delta * 20;
+      const newScale = scale + delta * (isGem ? 30 : 20); // Bigger explosion for gems
       const newOpacity = Math.max(0, opacity - delta / duration);
       setScale(newScale);
       setOpacity(newOpacity);
@@ -77,11 +77,11 @@ function HitEffect({ position, onComplete }) {
   });
 
   return (
-    <Sphere ref={meshRef} args={[10, 16, 16]} position={position}>
+    <Sphere ref={meshRef} args={[isGem ? 15 : 10, 16, 16]} position={position}>
       <meshStandardMaterial
-        color="#FFB800"
-        emissive="#FFB800"
-        emissiveIntensity={2}
+        color={isGem ? "#DC143C" : "#FFB800"}
+        emissive={isGem ? "#FF1744" : "#FFB800"}
+        emissiveIntensity={isGem ? 3 : 2}
         transparent
         opacity={opacity}
       />
@@ -91,7 +91,9 @@ function HitEffect({ position, onComplete }) {
 
 export default function ShootingSystem({ 
   words = [], 
-  onWordHit, 
+  onWordHit,
+  vectorGems = [],
+  onGemHit,
   enabled = true,
   themeMode = 'dark' 
 }) {
@@ -101,6 +103,9 @@ export default function ShootingSystem({
   const raycasterRef = useRef(new THREE.Raycaster());
   const mouseRef = useRef(new THREE.Vector2());
   const spacebarPressedRef = useRef(false);
+  const mouseDownRef = useRef(null);
+  const isDraggingRef = useRef(false);
+  const dragThreshold = 5; // pixels - if mouse moves more than this, it's a drag
 
   // Core shooting function - can be called from click or spacebar
   const shoot = useCallback((rayDirection = null) => {
@@ -115,9 +120,44 @@ export default function ShootingSystem({
       raycasterRef.current.setFromCamera(mouseRef.current, camera);
     }
 
-    // Find all word spheres to intersect with
-    const intersects = [];
+    // Find all objects to intersect with (prioritize gems over words)
+    const gemIntersects = [];
+    const wordIntersects = [];
     
+    // First check for Vector Gem hits (prioritized)
+    vectorGems.forEach(gem => {
+      if (!gem.position || !Array.isArray(gem.position) || gem.position.length !== 3) {
+        return;
+      }
+      if (gem.hitBy) return; // Already hit
+      
+      // Check if gem expired (30 seconds)
+      const now = Date.now();
+      if (now - gem.spawnTime >= 30000) return;
+      
+      const gemPos = new THREE.Vector3(...gem.position);
+      const baseSize = 15;
+      const gemRadius = baseSize * gem.size * 1.2; // Slightly larger hit radius
+      
+      // Create a bounding sphere for the gem
+      const sphere = new THREE.Sphere(gemPos, gemRadius);
+      
+      // Check if ray intersects with the sphere
+      const intersectionPoint = new THREE.Vector3();
+      const ray = raycasterRef.current.ray;
+      
+      if (ray.intersectSphere(sphere, intersectionPoint)) {
+        // Calculate distance from camera to intersection
+        const distance = camera.position.distanceTo(intersectionPoint);
+        gemIntersects.push({
+          gem,
+          distance,
+          point: intersectionPoint,
+        });
+      }
+    });
+    
+    // Then check for word hits
     words.forEach(word => {
       if (!word.position || !Array.isArray(word.position) || word.position.length !== 3) {
         return;
@@ -139,7 +179,7 @@ export default function ShootingSystem({
       if (ray.intersectSphere(sphere, intersectionPoint)) {
         // Calculate distance from camera to intersection
         const distance = camera.position.distanceTo(intersectionPoint);
-        intersects.push({
+        wordIntersects.push({
           word,
           distance,
           point: intersectionPoint,
@@ -147,11 +187,39 @@ export default function ShootingSystem({
       }
     });
 
-    // Sort by distance (closest first)
-    intersects.sort((a, b) => a.distance - b.distance);
+    // Prioritize gem hits over word hits
+    if (gemIntersects.length > 0) {
+      // Sort gem hits by distance (closest first)
+      gemIntersects.sort((a, b) => a.distance - b.distance);
+      const hit = gemIntersects[0];
+      const hitGem = hit.gem;
+      
+      // Create bullet trail (green for gem hit)
+      const bulletStart = camera.position.clone();
+      const bulletEnd = hit.point.clone();
+      
+      setBullets(prev => [...prev, {
+        id: Date.now(),
+        start: [bulletStart.x, bulletStart.y, bulletStart.z],
+        end: [bulletEnd.x, bulletEnd.y, bulletEnd.z],
+        color: '#DC143C', // Ruby Red for gem
+      }]);
 
-    if (intersects.length > 0) {
-      const hit = intersects[0];
+      // Create special gem hit effect (larger, more dramatic)
+      setHits(prev => [...prev, {
+        id: Date.now(),
+        position: [hit.point.x, hit.point.y, hit.point.z],
+        isGem: true,
+      }]);
+
+      // Call onGemHit callback
+      if (onGemHit) {
+        onGemHit(hitGem);
+      }
+    } else if (wordIntersects.length > 0) {
+      // Sort word hits by distance (closest first)
+      wordIntersects.sort((a, b) => a.distance - b.distance);
+      const hit = wordIntersects[0];
       const hitWord = hit.word;
       
       // Create bullet trail
@@ -187,11 +255,47 @@ export default function ShootingSystem({
         color: '#FF0000', // Red for miss
       }]);
     }
-  }, [camera, words, onWordHit, enabled]);
+  }, [camera, words, onWordHit, vectorGems, onGemHit, enabled]);
 
-  // Handle mouse click for shooting
+  // Handle mouse down - track initial position
+  const handleMouseDown = useCallback((event) => {
+    if (!enabled) return;
+    
+    if (event.target.tagName === 'CANVAS' || event.target === gl.domElement) {
+      // Record initial mouse position
+      mouseDownRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+      isDraggingRef.current = false;
+    }
+  }, [enabled, gl]);
+
+  // Handle mouse move - detect if dragging
+  const handleMouseMove = useCallback((event) => {
+    if (!enabled || !mouseDownRef.current) return;
+    
+    // Calculate distance moved
+    const dx = event.clientX - mouseDownRef.current.x;
+    const dy = event.clientY - mouseDownRef.current.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // If moved more than threshold, it's a drag
+    if (distance > dragThreshold) {
+      isDraggingRef.current = true;
+    }
+  }, [enabled]);
+
+  // Handle mouse click for shooting - only if it wasn't a drag
   const handleClick = useCallback((event) => {
     if (!enabled) return;
+    
+    // Don't shoot if it was a drag
+    if (isDraggingRef.current) {
+      mouseDownRef.current = null;
+      isDraggingRef.current = false;
+      return;
+    }
     
     // Don't shoot if clicking directly on a word (let the word's onClick handle it)
     if (event.target.tagName === 'CANVAS' || event.target === gl.domElement) {
@@ -203,7 +307,17 @@ export default function ShootingSystem({
       // Shoot using mouse position
       shoot();
     }
+    
+    // Reset drag tracking
+    mouseDownRef.current = null;
+    isDraggingRef.current = false;
   }, [enabled, gl, shoot]);
+
+  // Handle mouse up - reset drag tracking
+  const handleMouseUp = useCallback(() => {
+    mouseDownRef.current = null;
+    isDraggingRef.current = false;
+  }, []);
 
   // Handle spacebar key press
   const handleKeyDown = useCallback((event) => {
@@ -246,18 +360,24 @@ export default function ShootingSystem({
     if (!enabled) return;
     
     const canvas = gl.domElement;
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('click', handleClick);
+    canvas.addEventListener('mouseup', handleMouseUp);
     
     // Add keyboard listeners to window for spacebar
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     
     return () => {
+      canvas.removeEventListener('mousedown', handleMouseDown);
+      canvas.removeEventListener('mousemove', handleMouseMove);
       canvas.removeEventListener('click', handleClick);
+      canvas.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [handleClick, handleKeyDown, handleKeyUp, enabled, gl]);
+  }, [handleMouseDown, handleMouseMove, handleClick, handleMouseUp, handleKeyDown, handleKeyUp, enabled, gl]);
 
   return (
     <>
@@ -279,6 +399,7 @@ export default function ShootingSystem({
         <HitEffect
           key={hit.id}
           position={hit.position}
+          isGem={hit.isGem || false}
           onComplete={() => {
             setHits(prev => prev.filter(h => h.id !== hit.id));
           }}

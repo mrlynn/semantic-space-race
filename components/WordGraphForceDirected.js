@@ -8,6 +8,7 @@ import Starfield from './Starfield';
 import { cosineSimilarity } from '@/lib/utils';
 import ShootingSystem from './ShootingSystem';
 import Crosshair from './Crosshair';
+import VectorGem from './VectorGem';
 
 // Force-directed graph node component - memoized for performance
 const GraphNode = React.memo(function GraphNode({ word, isCurrent, isRelated, onClick, position, themeMode = 'dark' }) {
@@ -485,6 +486,8 @@ export default function WordGraphForceDirected({
   currentNodeId,
   relatedWordIds = [],
   onWordClick,
+  vectorGems = [],
+  onGemHit = null,
   themeMode = 'dark',
   onCameraControlsReady = null,
 }) {
@@ -689,13 +692,29 @@ export default function WordGraphForceDirected({
         );
       })}
 
-      {/* Shooting System - allows firing bullets at words */}
+      {/* Render Vector Gems */}
+      {vectorGems.map(gem => {
+        const now = Date.now();
+        if (gem.hitBy || (now - gem.spawnTime) >= 30000) return null;
+        return (
+          <VectorGem
+            key={gem.id}
+            gem={gem}
+            onHit={onGemHit}
+            themeMode={themeMode}
+          />
+        );
+      })}
+
+      {/* Shooting System - allows firing bullets at words and gems */}
       <ShootingSystem
         words={filteredWords.map(word => ({
           ...word,
           position: nodePositions[word.id] || word.position
         }))}
         onWordHit={onWordClick}
+        vectorGems={vectorGems}
+        onGemHit={onGemHit}
         enabled={true}
         themeMode={themeMode}
       />

@@ -25,7 +25,7 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    const { gameCode, playerId, guess } = body;
+    const { gameCode, playerId, guess, actionType = 'guess' } = body;
     logData.data = { gameCode, playerId, guess, hasGameCode: !!gameCode, hasPlayerId: !!playerId, hasGuess: !!guess };
     console.log('🔵 [GUESS API] Request body:', { gameCode, playerId, guess: guess?.substring(0, 20) });
     fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData) }).catch(() => {});
@@ -124,6 +124,44 @@ export async function POST(request) {
         { success: false, error: 'Player not found' },
         { status: 404 }
       );
+    }
+
+    // Check if player is out of tokens
+    if (game.isPlayerOut(playerId)) {
+      return NextResponse.json(
+        { success: false, error: 'You are out of tokens for this round' },
+        { status: 400 }
+      );
+    }
+
+    // Deduct tokens based on action type
+    // Shooting costs 2 tokens, guessing costs 3 tokens
+    const tokenCost = actionType === 'shoot' ? 2 : 3;
+    const tokenDeduction = game.deductTokens(playerId, tokenCost);
+    if (!tokenDeduction.success) {
+      return NextResponse.json(
+        { success: false, error: tokenDeduction.error, tokens: tokenDeduction.tokens },
+        { status: 400 }
+      );
+    }
+
+    // Save game state after token deduction
+    await game.save();
+
+    // Emit token update event
+    const updatedPlayer = game.getPlayer(playerId);
+    await pusher.trigger(`game-${game.gameCode}`, 'player:tokens-updated', {
+      playerId,
+      tokens: updatedPlayer.tokens,
+      tokensOut: updatedPlayer.tokensOut,
+    });
+
+    // If player ran out of tokens, emit player:out event
+    if (tokenDeduction.tokensOut) {
+      await pusher.trigger(`game-${game.gameCode}`, 'player:out', {
+        playerId,
+        nickname: player.nickname,
+      });
     }
 
     // Find the guessed word in the graph first
@@ -267,6 +305,8 @@ export async function POST(request) {
           id: p.id,
           nickname: p.nickname,
           score: p.score || 0,
+          tokens: p.tokens !== undefined ? p.tokens : 15,
+          tokensOut: p.tokensOut || false,
         })),
       });
 
@@ -291,6 +331,7 @@ export async function POST(request) {
       });
     }
 
+    const updatedPlayerAfterGuess = game.getPlayer(playerId);
     const responseData = {
       success: true,
       correct: isCorrect,
@@ -302,6 +343,8 @@ export async function POST(request) {
       message: wordInGraph 
         ? undefined 
         : 'Word not in graph, but similarity calculated',
+      tokens: updatedPlayerAfterGuess.tokens,
+      tokensOut: updatedPlayerAfterGuess.tokensOut,
     };
     console.log('🟢 [GUESS API] Returning response:', { 
       success: responseData.success, 
