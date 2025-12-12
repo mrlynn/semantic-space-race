@@ -458,7 +458,7 @@ export default function SemanticHopHUD({
         </Typography>
         {practiceMode && currentTarget && (
           <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic', display: 'block', mt: 1 }}>
-            Practice Mode: Try to find "{currentTarget.label}"
+            Practice Mode: Try to find &quot;{currentTarget.label}&quot;
           </Typography>
         )}
         {/* Dev cheat: Target word reveal */}
@@ -1094,6 +1094,7 @@ export default function SemanticHopHUD({
             boxShadow: isDark
               ? '-8px 0 32px rgba(0, 237, 100, 0.2)'
               : '-8px 0 32px rgba(0, 0, 0, 0.1)',
+            overflowX: 'hidden',
           },
         }}
       >

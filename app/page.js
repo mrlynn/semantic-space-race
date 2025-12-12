@@ -1916,35 +1916,7 @@ export default function Home() {
     };
   }, [gameActive, practiceMode, roundPhase, isGuessing, isOut, neighbors, currentNodeId, currentTarget, words, neighborIndex, relatedWords, showToast, handleHopRef]);
 
-  // Show stats screen when game has ended
-  if (gameEnded && finalScores.length > 0) {
-    return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <BrandShapes count={12} opacity={0.12} />
-        <Box sx={{ position: 'relative', minHeight: '100vh' }}>
-          <GameStatsScreen
-            finalScores={finalScores}
-            gameCode={gameCode}
-            onReturnToLobby={handleReturnToLobby}
-            themeMode={themeMode}
-          />
-        </Box>
-        <Snackbar
-          open={toast.open}
-          autoHideDuration={6000}
-          onClose={handleCloseToast}
-          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        >
-          <Alert onClose={handleCloseToast} severity={toast.severity} sx={{ width: '100%' }}>
-            {toast.message}
-          </Alert>
-        </Snackbar>
-      </ThemeProvider>
-    );
-  }
-
-  // Enter practice mode handler
+  // Enter practice mode handler - MUST be before any conditional returns
   const handleEnterPracticeMode = useCallback(async (topic = 'general-database') => {
     console.log('🎮 [PRACTICE] Entering practice mode with topic:', topic);
     // Clear any existing state first
@@ -2014,6 +1986,7 @@ export default function Home() {
         showToast('Practice mode ready - find the target word!', 'success');
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [practiceMode, words.length, currentNodeId, loadNeighbors, showToast]);
 
   // Exit practice mode handler
@@ -2026,7 +1999,7 @@ export default function Home() {
     showToast('Exited practice mode', 'info');
   }, [showToast]);
 
-  // Leave game handler
+  // Leave game handler - MUST be before any conditional returns
   const handleLeaveGame = useCallback(async () => {
     if (!gameCode || !playerId) {
       showToast('No active game to leave', 'info');
