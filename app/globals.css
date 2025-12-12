@@ -1,98 +1,24 @@
-/* 8-bit Pixelated Styling */
+/* Modern Typography & Rendering */
 
-/* Pixelated rendering for all images and graphics */
-img,
-canvas,
-svg {
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
+/* Optimize canvas rendering for 3D scenes (Three.js) */
+canvas {
+  image-rendering: auto;
+  image-rendering: -webkit-optimize-contrast;
 }
 
-/* Pixelated borders for retro feel */
-.pixel-border {
-  border: 3px solid;
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-}
-
-/* 8-bit button press effect */
-.pixel-button {
-  position: relative;
-  border: 3px solid;
-  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.3);
-  transition: all 0.1s ease;
-}
-
-.pixel-button:hover {
-  transform: translate(-1px, -1px);
-  box-shadow: 5px 5px 0px rgba(0, 0, 0, 0.3);
-}
-
-.pixel-button:active {
-  transform: translate(2px, 2px);
-  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.3);
-}
-
-/* Pixelated text rendering */
-.pixel-text {
-  font-family: 'PressStart2PRegular', monospace;
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-  text-rendering: optimizeSpeed;
-}
-
-/* 8-bit card/paper effect */
-.pixel-card {
-  border: 3px solid;
-  box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.2);
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-}
-
-/* Pixelated input fields */
-.pixel-input {
-  border: 3px solid !important;
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-}
-
-.pixel-input:focus {
-  box-shadow: 0 0 0 2px rgba(0, 237, 100, 0.2) !important;
-}
-
-/* Disable anti-aliasing only for pixelated fonts */
-.pixel-text,
-h1, h2, h3, h4, h5, h6,
-button,
-.MuiButton-root,
-.MuiChip-root {
-  -webkit-font-smoothing: none;
-  -moz-osx-font-smoothing: unset;
-  text-rendering: optimizeSpeed;
-}
-
-/* Keep smooth rendering for body text */
+/* Smooth, modern text rendering for all typography */
 body,
 p,
 span,
 div,
-.MuiTypography-body1,
-.MuiTypography-body2,
+h1, h2, h3, h4, h5, h6,
+button,
+.MuiButton-root,
+.MuiChip-root,
+.MuiTypography-root,
 .MuiTextField-root {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-}
-
-/* Pixelated progress bars */
-.pixel-progress {
-  border: 2px solid;
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
+  font-feature-settings: 'kern' 1;
 }

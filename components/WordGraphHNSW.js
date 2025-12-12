@@ -2,14 +2,19 @@
 
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Text, Sphere, Line, Billboard } from '@react-three/drei';
+import { OrbitControls, Text, Line, Billboard } from '@react-three/drei';
+import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import Starfield from './Starfield';
+import Nebula from './Nebula';
 import { cosineSimilarity } from '@/lib/utils';
 import ShootingSystem from './ShootingSystem';
 import Crosshair from './Crosshair';
 import OtherPlayers from './OtherPlayers';
 import VectorGem from './VectorGem';
+import BadAsteroid from './BadAsteroid';
+import FacetedGem from './FacetedGem';
+import PlayerShip from './PlayerShip';
 import { TextField, Button, Paper, Box, List, ListItem, ListItemButton, ListItemText, Typography } from '@mui/material';
 
 // Semantic Proximity Controller - adjusts positions based on semantic similarity
@@ -210,22 +215,13 @@ const HNSWNode = React.memo(function HNSWNode({
 
   return (
     <group position={pos}>
-      {/* Enhanced glow for hubs and current/related nodes - significantly reduced opacity for clarity */}
-      {(isCurrent || isRelated || isHub) && (
-        <Sphere ref={glowRef} args={[baseScale * 1.1, 16, 16]}>
-          <meshStandardMaterial
-            color={glowColor}
-            emissive={glowColor}
-            emissiveIntensity={isCurrent ? 0.5 : isHub ? (isHovered ? 0.5 : 0.25) : 0.2}
-            transparent
-            opacity={isHub ? (isHovered ? 0.2 : 0.12) : 0.1}
-          />
-        </Sphere>
-      )}
-
-      <Sphere
-        ref={meshRef}
-        args={[baseScale, 32, 32]}
+      {/* Faceted Gem - replaces spheres with crystalline geometry */}
+      <FacetedGem
+        size={baseScale}
+        color={baseColor}
+        isActive={isCurrent}
+        isHighlighted={isRelated || isHub}
+        emissiveIntensity={isCurrent ? 0.4 : isHub ? 0.3 : isRelated ? 0.25 : 0.2}
         onClick={onClick}
         onPointerOver={(e) => {
           e.stopPropagation();
@@ -241,14 +237,45 @@ const HNSWNode = React.memo(function HNSWNode({
           }
         }}
       >
-        <meshStandardMaterial
-          color={baseColor}
-          emissive={isCurrent ? baseColor : isHub ? glowColor : isRelated ? glowColor : '#000000'}
-          emissiveIntensity={isCurrent ? 1.2 : isHub ? 0.8 : isRelated ? 0.6 : 0}
-          metalness={0.8}
-          roughness={0.2}
-        />
-      </Sphere>
+        {/* Only show labels for important nodes or when close to camera */}
+        {showLabel && (
+          <Billboard position={[0, baseScale + 6, 0]}>
+            <group>
+              {/* Main label - centered */}
+              <Text
+                fontSize={(isHub ? 7 : isCurrent ? 6.5 : isRelated ? 6 : 5.5) * labelScale}
+                color={isCurrent ? '#00ED64' : isHub ? '#FFB800' : isRelated ? '#FFB800' : (themeMode === 'dark' ? '#FFFFFF' : '#001E2B')}
+                anchorX="center"
+                anchorY="middle"
+                outlineWidth={themeMode === 'dark' ? 1.5 : 2}
+                outlineColor={themeMode === 'dark' ? '#000000' : '#FFFFFF'}
+                fontWeight="bold"
+                strokeWidth={themeMode === 'dark' ? 0.05 : 0.1}
+                strokeColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
+                maxWidth={200}
+                position={[0, (isHub ? 1.5 : isCurrent ? 1.4 : isRelated ? 1.3 : 1.2) * labelScale, 0]}
+              >
+                {word.label}
+              </Text>
+              {/* Array address - second row, smaller text, positioned below main label */}
+              <Text
+                fontSize={(isHub ? 2.5 : isCurrent ? 2.3 : isRelated ? 2.2 : 2) * labelScale}
+                color={isCurrent ? '#88FFAA' : isHub ? '#FFD966' : isRelated ? '#FFD966' : (themeMode === 'dark' ? '#888888' : '#333333')}
+                anchorX="center"
+                anchorY="top"
+                outlineWidth={themeMode === 'dark' ? 0.8 : 1.2}
+                outlineColor={themeMode === 'dark' ? '#000000' : '#FFFFFF'}
+                fontWeight="normal"
+                strokeWidth={themeMode === 'dark' ? 0.03 : 0.08}
+                strokeColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
+                position={[0, -(isHub ? 2 : isCurrent ? 1.8 : isRelated ? 1.6 : 1.5) * labelScale, 0]}
+              >
+                [{Math.round(pos[0])}, {Math.round(pos[1])}, {Math.round(pos[2])}]
+              </Text>
+            </group>
+          </Billboard>
+        )}
+      </FacetedGem>
 
       {/* Layer indicator ring for hubs with animation - reduced opacity */}
       {isHub && (
@@ -257,52 +284,13 @@ const HNSWNode = React.memo(function HNSWNode({
           <meshBasicMaterial color="#FFB800" transparent opacity={0.25} />
         </mesh>
       )}
-      
+
       {/* Layer plane indicator (subtle visual cue) - reduced opacity */}
       {layer === 'top' && (
         <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -baseScale * 0.5, 0]}>
           <circleGeometry args={[baseScale * 0.8, 16]} />
           <meshBasicMaterial color="#FFB800" transparent opacity={0.08} />
         </mesh>
-      )}
-
-      {/* Only show labels for important nodes or when close to camera */}
-      {showLabel && (
-        <Billboard position={[0, baseScale + 6, 0]}>
-          <group>
-            {/* Main label - centered */}
-            <Text
-              fontSize={(isHub ? 7 : isCurrent ? 6.5 : isRelated ? 6 : 5.5) * labelScale}
-              color={isCurrent ? '#00ED64' : isHub ? '#FFB800' : isRelated ? '#FFB800' : (themeMode === 'dark' ? '#FFFFFF' : '#001E2B')}
-              anchorX="center"
-              anchorY="middle"
-              outlineWidth={themeMode === 'dark' ? 1.5 : 2}
-              outlineColor={themeMode === 'dark' ? '#000000' : '#FFFFFF'}
-              fontWeight="bold"
-              strokeWidth={themeMode === 'dark' ? 0.05 : 0.1}
-              strokeColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
-              maxWidth={200}
-              position={[0, (isHub ? 1.5 : isCurrent ? 1.4 : isRelated ? 1.3 : 1.2) * labelScale, 0]}
-            >
-              {word.label}
-            </Text>
-            {/* Array address - second row, smaller text, positioned below main label */}
-            <Text
-              fontSize={(isHub ? 2.5 : isCurrent ? 2.3 : isRelated ? 2.2 : 2) * labelScale}
-              color={isCurrent ? '#88FFAA' : isHub ? '#FFD966' : isRelated ? '#FFD966' : (themeMode === 'dark' ? '#888888' : '#333333')}
-              anchorX="center"
-              anchorY="top"
-              outlineWidth={themeMode === 'dark' ? 0.8 : 1.2}
-              outlineColor={themeMode === 'dark' ? '#000000' : '#FFFFFF'}
-              fontWeight="normal"
-              strokeWidth={themeMode === 'dark' ? 0.03 : 0.08}
-              strokeColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
-              position={[0, -(isHub ? 2 : isCurrent ? 1.8 : isRelated ? 1.6 : 1.5) * labelScale, 0]}
-            >
-              [{Math.round(pos[0])}, {Math.round(pos[1])}, {Math.round(pos[2])}]
-            </Text>
-          </group>
-        </Billboard>
       )}
     </group>
   );
@@ -1027,6 +1015,8 @@ function SearchNavigationController({ searchedWordId, words, nodePositions, cont
 }
 
 export default function WordGraphHNSW({
+  badAsteroids = [],
+  onBadAsteroidHit,
   words = [],
   currentNodeId,
   relatedWordIds = [],
@@ -1047,6 +1037,7 @@ export default function WordGraphHNSW({
   const [nodeLayers, setNodeLayers] = useState({});
   const [navigationPath, setNavigationPath] = useState(null);
   const [showPath, setShowPath] = useState(false);
+  const [shipPosition, setShipPosition] = useState(null);
   const [hoveredHub, setHoveredHub] = useState(null);
   const [semanticPositions, setSemanticPositions] = useState({});
   const [playerPosition, setPlayerPosition] = useState({ position: [0, 0, 0], word: null });
@@ -1352,7 +1343,7 @@ export default function WordGraphHNSW({
           position: cameraPosition,
           fov: 75,
           near: 0.01,
-          far: 100000,
+          far: 1000000, // Increased far plane to support very large worlds
         }}
         style={{ 
           width: '100%', 
@@ -1360,7 +1351,11 @@ export default function WordGraphHNSW({
           background: themeMode === 'dark' ? '#001E2B' : '#F5F5F5' 
         }}
       >
-      <Starfield count={1000} radius={300} /> {/* Further reduced for less visual noise */}
+      {/* Nebula clouds - adds atmospheric depth */}
+      <Nebula count={8} radius={4000} themeMode={themeMode} />
+
+      {/* Starfield - distributed stars in skybox */}
+      <Starfield count={1000} radius={5000} />
       <ambientLight intensity={themeMode === 'dark' ? 0.35 : 0.5} /> {/* Reduced for better contrast */}
       <pointLight position={[20, 20, 20]} color="#00ED64" intensity={1.2} />
       <pointLight position={[-20, -20, -20]} color="#00684A" intensity={0.8} />
@@ -1438,16 +1433,10 @@ export default function WordGraphHNSW({
         // Only render active gems (not hit, not expired)
         const now = Date.now();
         const age = now - gem.spawnTime;
-        if (gem.hitBy) {
-          console.log('💎 [RENDER] Gem already hit, skipping:', gem.id);
-          return null;
-        }
-        if (age >= 30000) {
-          console.log('💎 [RENDER] Gem expired, skipping:', gem.id, 'age:', age);
+        if (gem.hitBy || age >= 30000) {
           return null;
         }
         
-        console.log('💎 [RENDER] Rendering gem:', gem.id, 'position:', gem.position, 'age:', age);
         return (
           <VectorGem
             key={gem.id}
@@ -1458,7 +1447,36 @@ export default function WordGraphHNSW({
         );
       })}
 
-      {/* Shooting System - allows firing bullets at words and gems */}
+      {/* Render Bad Asteroids */}
+      {badAsteroids && badAsteroids.map(asteroid => {
+        // Only render active asteroids (not hit, not expired)
+        const now = Date.now();
+        const age = now - asteroid.spawnTime;
+        if (asteroid.hitBy || age >= 30000) {
+          return null;
+        }
+        
+        return (
+          <BadAsteroid
+            key={asteroid.id}
+            asteroid={asteroid}
+            onHit={onBadAsteroidHit}
+            themeMode={themeMode}
+          />
+        );
+      })}
+
+      {/* Player Ship - Asteroids-style triangle at bottom center of screen */}
+      <PlayerShip
+        color="#00ED64"
+        scale={1.2}
+        offset={{ x: 0, y: -1.2, z: -2 }}
+        showThrusters={true}
+        themeMode={themeMode}
+        onPositionUpdate={setShipPosition}
+      />
+
+      {/* Shooting System - fires from ship position */}
       <ShootingSystem
         words={filteredWords.map(word => ({
           ...word,
@@ -1467,8 +1485,11 @@ export default function WordGraphHNSW({
         onWordHit={onWordClick}
         vectorGems={vectorGems}
         onGemHit={onGemHit}
+        badAsteroids={badAsteroids}
+        onBadAsteroidHit={onBadAsteroidHit}
         enabled={true}
         themeMode={themeMode}
+        shipPosition={shipPosition}
       />
 
       {/* Render other players */}
@@ -1486,12 +1507,12 @@ export default function WordGraphHNSW({
         enablePan={true}
         enableZoom={true}
         enableRotate={true}
-        minDistance={50}
-        maxDistance={5000}
+        minDistance={0.1} // Allow zooming in extremely close
+        maxDistance={Infinity} // No maximum distance limit - can zoom out forever to reach all nodes
         autoRotate={false}
-        panSpeed={2.0}
-        zoomSpeed={1.5}
-        rotateSpeed={0.8}
+        panSpeed={5.0} // Faster panning for better navigation
+        zoomSpeed={3.0} // Faster zooming for quicker exploration
+        rotateSpeed={1.0} // Smooth rotation
         screenSpacePanning={true}
         minPolarAngle={0}
         maxPolarAngle={Math.PI}
@@ -1500,7 +1521,23 @@ export default function WordGraphHNSW({
         enableDamping={true}
         dampingFactor={0.05}
         makeDefault={true}
+        mouseButtons={{
+          LEFT: -1,                   // Disable left button (used for shooting)
+          MIDDLE: THREE.MOUSE.DOLLY,  // Middle button/wheel for zoom
+          RIGHT: THREE.MOUSE.ROTATE,  // Right button for rotation (drag with right button)
+        }}
       />
+
+      {/* Post-processing effects - subtle bloom for professional look */}
+      <EffectComposer>
+        <Bloom
+          intensity={0.3}         // Subtle bloom (professional, not overwhelming)
+          luminanceThreshold={0.6} // Only bright emissive objects glow
+          luminanceSmoothing={0.9}
+          mipmapBlur={true}
+          radius={0.5}            // Tight glow radius
+        />
+      </EffectComposer>
       </Canvas>
       
       <Crosshair themeMode={themeMode} />
@@ -1519,15 +1556,14 @@ export default function WordGraphHNSW({
           elevation={6}
           sx={{
             p: 2,
-            borderRadius: 0,
+            borderRadius: 3,
             background: themeMode === 'dark'
               ? 'linear-gradient(135deg, rgba(0, 104, 74, 0.4) 0%, rgba(2, 52, 48, 0.95) 100%)'
               : 'linear-gradient(135deg, rgba(0, 237, 100, 0.1) 0%, rgba(255, 255, 255, 0.95) 100%)',
             backdropFilter: 'blur(20px)',
-            border: '3px solid',
-            borderColor: 'primary.main',
-            boxShadow: '6px 6px 0px rgba(0, 237, 100, 0.3)',
-            imageRendering: 'pixelated',
+            border: '1px solid',
+            borderColor: 'rgba(0, 237, 100, 0.2)',
+            boxShadow: '0 8px 32px rgba(0, 237, 100, 0.2)',
           }}
         >
           <form
@@ -1550,13 +1586,9 @@ export default function WordGraphHNSW({
               sx={{
                 mb: 1,
                 '& .MuiOutlinedInput-root': {
-                  borderRadius: 0,
-                  borderWidth: '2px',
+                  borderRadius: 2,
                   fontSize: '0.875rem',
                   fontFamily: '"Euclid Circular A", sans-serif',
-                  '& fieldset': {
-                    borderWidth: '2px',
-                  },
                 },
               }}
             />
@@ -1567,13 +1599,9 @@ export default function WordGraphHNSW({
               fullWidth
               disabled={searchResults.length === 0}
               sx={{
-                borderRadius: 0,
-                border: '2px solid',
-                borderColor: 'primary.dark',
-                boxShadow: '3px 3px 0px rgba(0, 0, 0, 0.3)',
-                fontFamily: '"PressStart2PRegular", monospace',
-                fontSize: '0.625rem',
+                borderRadius: 2,
                 py: 1,
+                fontWeight: 600,
               }}
             >
               Navigate
@@ -1587,11 +1615,11 @@ export default function WordGraphHNSW({
                 mt: 1,
                 maxHeight: '300px',
                 overflow: 'auto',
-                borderRadius: 0,
-                border: '2px solid',
-                borderColor: 'primary.main',
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: 'rgba(0, 237, 100, 0.3)',
                 backgroundColor: themeMode === 'dark' ? 'rgba(2, 52, 48, 0.98)' : 'rgba(255, 255, 255, 0.98)',
-                boxShadow: '4px 4px 0px rgba(0, 0, 0, 0.2)',
+                boxShadow: '0 4px 16px rgba(0, 237, 100, 0.2)',
               }}
             >
               <List dense sx={{ p: 0 }}>

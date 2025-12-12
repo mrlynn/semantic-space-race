@@ -6,23 +6,29 @@ The game now supports topic-based word lists, allowing players to choose a speci
 
 ## Available Topics
 
-1. **Architecture and Deployment** (`architecture-deployment`)
+1. **Demo - Simple Word Set** (`demo`)
+   - A small, intentionally limited word set (40 words) designed to demonstrate HNSW vector search and semantic positioning
+   - Perfect for understanding how words cluster semantically in 3D space
+   - Includes: animals (cat, dog, bird, fish), colors (red, blue, green), food (apple, banana, carrot), transportation (car, bike, plane), weather (rain, snow, sun), and body parts (hand, eye, ear)
+   - Use this topic to see clear semantic relationships and how vector search works
+
+2. **Architecture and Deployment** (`architecture-deployment`)
    - Words related to MongoDB architecture, deployment, scaling, and infrastructure
    - Examples: replica, shard, cluster, deployment, scalability, container, orchestration
 
-2. **MongoDB Query** (`mongodb-query`)
+3. **MongoDB Query** (`mongodb-query`)
    - Words related to querying MongoDB
    - Examples: query, find, findOne, filter, projection, sort, limit, cursor
 
-3. **Aggregation and Commands** (`aggregation-commands`)
+4. **Aggregation and Commands** (`aggregation-commands`)
    - Words related to aggregation pipelines and MongoDB commands
    - Examples: aggregation, pipeline, $match, $group, $project, $lookup
 
-4. **Data Modeling** (`data-modeling`)
+5. **Data Modeling** (`data-modeling`)
    - Words related to schema design and data modeling
    - Examples: schema, document, collection, field, embedded document, reference
 
-5. **General Database Concepts** (`general-database`)
+6. **General Database Concepts** (`general-database`)
    - General database terminology and concepts
    - Examples: database, index, transaction, ACID, CRUD, consistency
 

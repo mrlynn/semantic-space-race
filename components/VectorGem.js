@@ -33,8 +33,7 @@ export default function VectorGem({
   const gemColor = '#DC143C'; // Ruby Red
   const glowColor = '#FF1744'; // Bright Ruby Red for glow
   
-  // Debug log on mount
-  console.log('💎 [VectorGem] Component mounted:', gem.id, 'position:', initialPos, 'velocity:', initialVel, 'size:', size);
+  // Component mounted - debug logging removed to reduce console noise
 
   useFrame((state, delta) => {
     if (hit || despawned || !groupRef.current) return;

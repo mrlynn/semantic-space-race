@@ -16,6 +16,14 @@ const PlayerSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  hintUsed: {
+    type: Boolean,
+    default: false,
+  },
+  rerankerUsed: {
+    type: Boolean,
+    default: false,
+  },
 }, { _id: false });
 
 const GameSchema = new mongoose.Schema({
@@ -82,12 +90,31 @@ const GameSchema = new mongoose.Schema({
     type: String,
     default: 'general',
   },
+  difficulty: {
+    type: String,
+    enum: ['beginner', 'intermediate', 'advanced'],
+    default: 'intermediate',
+  },
+  educationalMode: {
+    type: String,
+    enum: ['mongodb-vector-search', null],
+    default: null,
+  },
   vectorGems: [{
     id: String,
     position: [Number], // [x, y, z]
     velocity: [Number], // [vx, vy, vz] - direction and speed
     size: Number, // Size multiplier (0.5 to 2.0)
     reward: Number, // Tokens to award (1-10)
+    spawnTime: Number, // Timestamp when spawned
+    hitBy: String, // playerId who hit it (null if not hit)
+  }],
+  badAsteroids: [{
+    id: String,
+    position: [Number], // [x, y, z]
+    velocity: [Number], // [vx, vy, vz] - direction and speed
+    size: Number, // Size multiplier (0.5 to 2.0)
+    cost: Number, // Tokens to deduct (1-5)
     spawnTime: Number, // Timestamp when spawned
     hitBy: String, // playerId who hit it (null if not hit)
   }],

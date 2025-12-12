@@ -88,10 +88,10 @@ export default function Leaderboard({
               bgcolor: player.id === currentPlayerId
                 ? 'rgba(0, 237, 100, 0.2)'
                 : 'transparent',
-              borderRadius: 0, // Sharp corners for 8-bit look
+              borderRadius: 2,
               mb: 0.5,
-              border: player.id === currentPlayerId ? '2px solid' : 'none',
-              borderColor: 'primary.main',
+              border: player.id === currentPlayerId ? '1px solid' : 'none',
+              borderColor: 'rgba(0, 237, 100, 0.4)',
               transition: 'all 0.1s ease',
               '&:hover': {
                 bgcolor: 'rgba(0, 237, 100, 0.1)',
@@ -100,8 +100,9 @@ export default function Leaderboard({
           >
             <ListItemText
               primary={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Box
+                    component="span"
                     sx={{
                       width: 24,
                       height: 24,
@@ -113,7 +114,7 @@ export default function Leaderboard({
                         : index === 2
                         ? 'warning.dark'
                         : 'rgba(255, 255, 255, 0.2)',
-                      display: 'flex',
+                      display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: '0.75rem',
@@ -123,7 +124,7 @@ export default function Leaderboard({
                   >
                     {index + 1}
                   </Box>
-                  <Typography variant="body2" fontWeight={player.id === currentPlayerId ? 700 : 400}>
+                  <Typography component="span" variant="body2" fontWeight={player.id === currentPlayerId ? 700 : 400}>
                     {player.nickname}
                   </Typography>
                 </Box>
@@ -170,10 +171,10 @@ export default function Leaderboard({
                 bgcolor: isCurrentPlayer
                   ? 'rgba(0, 237, 100, 0.2)'
                   : 'transparent',
-                borderRadius: 0, // Sharp corners for 8-bit look
+                borderRadius: 2,
                 mb: 0.5,
-                border: isCurrentPlayer ? '2px solid' : 'none',
-                borderColor: 'primary.main',
+                border: isCurrentPlayer ? '1px solid' : 'none',
+                borderColor: 'rgba(0, 237, 100, 0.4)',
                 transition: 'all 0.1s ease',
                 '&:hover': {
                   bgcolor: 'rgba(0, 237, 100, 0.1)',
@@ -182,8 +183,9 @@ export default function Leaderboard({
             >
               <ListItemText
                 primary={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Box
+                      component="span"
                       sx={{
                         width: 24,
                         height: 24,
@@ -195,7 +197,7 @@ export default function Leaderboard({
                           : index === 2
                           ? 'warning.dark'
                           : 'rgba(255, 255, 255, 0.2)',
-                        display: 'flex',
+                        display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontSize: '0.75rem',
@@ -205,20 +207,20 @@ export default function Leaderboard({
                     >
                       {player.rank}
                     </Box>
-                    <Typography variant="body2" fontWeight={isCurrentPlayer ? 700 : 400}>
+                    <Typography component="span" variant="body2" fontWeight={isCurrentPlayer ? 700 : 400}>
                       {player.nickname}
                     </Typography>
                   </Box>
                 }
                 secondary={
-                  <Box>
-                    <Typography variant="caption" sx={{ color: 'primary.light', fontWeight: 600, display: 'block' }}>
+                  <Box component="span">
+                    <Typography component="span" variant="caption" sx={{ color: 'primary.light', fontWeight: 600, display: 'block' }}>
                       {sortBy === 'totalScore' && `${player.totalScore} total points`}
                       {sortBy === 'averageScore' && `${player.averageScore} avg points`}
                       {sortBy === 'gamesWon' && `${player.gamesWon} wins`}
                       {sortBy === 'bestScore' && `${player.bestScore} best game`}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem' }}>
+                    <Typography component="span" variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', display: 'block' }}>
                       {player.totalGames} games
                     </Typography>
                   </Box>
@@ -251,17 +253,14 @@ export default function Leaderboard({
         elevation={6}
         sx={{
           p: 2.5,
-          border: '3px solid',
-          borderColor: 'primary.main',
-          borderRadius: 0, // Sharp corners for 8-bit look
+          border: '1px solid',
+          borderColor: 'rgba(0, 237, 100, 0.2)',
+          borderRadius: 3,
           background: paperGradient,
           backdropFilter: 'blur(10px)',
-          boxShadow: '6px 6px 0px rgba(0, 0, 0, 0.3)',
+          boxShadow: '0 8px 32px rgba(0, 237, 100, 0.15)',
           position: 'relative',
           overflow: 'hidden',
-          imageRendering: 'pixelated',
-          imageRendering: '-moz-crisp-edges',
-          imageRendering: 'crisp-edges',
         }}
       >
         <BrandShapeDecoration position="top-left" size={80} opacity={brandShapeOpacity.medium} shapeNumber={7} />
@@ -308,11 +307,13 @@ export default function Leaderboard({
                   sx={{
                     px: 1,
                     py: 0.5,
-                    borderRadius: 0, // Sharp corners for 8-bit look
+                    borderRadius: 2,
                     fontSize: '0.65rem',
                     cursor: 'pointer',
-                    border: '2px solid',
-                    borderColor: sortBy === sort ? 'primary.main' : 'transparent',
+                    border: '1px solid',
+                    borderColor: sortBy === sort
+                      ? 'rgba(0, 237, 100, 0.5)'
+                      : 'transparent',
                     bgcolor: sortBy === sort
                       ? 'primary.main'
                       : isDark
@@ -320,16 +321,19 @@ export default function Leaderboard({
                       : 'rgba(0, 0, 0, 0.05)',
                     color: sortBy === sort ? 'black' : 'text.secondary',
                     fontWeight: sortBy === sort ? 700 : 400,
-                    transition: 'all 0.1s',
-                    boxShadow: sortBy === sort ? '2px 2px 0px rgba(0, 0, 0, 0.2)' : 'none',
+                    transition: 'all 0.2s',
+                    boxShadow: sortBy === sort
+                      ? '0 2px 8px rgba(0, 237, 100, 0.3)'
+                      : 'none',
                     '&:hover': {
                       bgcolor: sortBy === sort
                         ? 'primary.light'
                         : isDark
                         ? 'rgba(255, 255, 255, 0.15)'
                         : 'rgba(0, 0, 0, 0.1)',
-                      transform: sortBy === sort ? 'translate(-1px, -1px)' : 'none',
-                      boxShadow: sortBy === sort ? '3px 3px 0px rgba(0, 0, 0, 0.2)' : 'none',
+                      boxShadow: sortBy === sort
+                        ? '0 4px 12px rgba(0, 237, 100, 0.4)'
+                        : 'none',
                     },
                   }}
                 >
@@ -360,9 +364,9 @@ export default function Leaderboard({
           '& .MuiDrawer-paper': {
             bgcolor: isDark ? 'rgba(2, 52, 48, 0.98)' : 'rgba(255, 255, 255, 0.98)',
             backdropFilter: 'blur(10px)',
-            borderLeft: '3px solid',
-            borderColor: 'primary.main',
-            boxShadow: '-4px 0 24px rgba(0, 237, 100, 0.3)',
+            borderLeft: '1px solid',
+            borderColor: 'rgba(0, 237, 100, 0.2)',
+            boxShadow: '-8px 0 32px rgba(0, 237, 100, 0.2)',
           },
         }}
       >

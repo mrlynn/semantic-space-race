@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getGame } from '@/lib/gameStateDB';
 import { generateHint } from '@/lib/openai';
+import pusher from '@/lib/pusher';
 
 export async function POST(request) {
   try {
@@ -125,20 +126,45 @@ export async function POST(request) {
       });
     }
 
-    return NextResponse.json({
-      success: true,
-      hint: hintText,
-      penalty: hintPenalty,
-      newScore: updatedPlayer.score,
-      tokens: updatedPlayer.tokens,
-      tokensOut: updatedPlayer.tokensOut,
-    });
+    try {
+      return NextResponse.json({
+        success: true,
+        hint: hintText,
+        penalty: hintPenalty,
+        newScore: updatedPlayer.score,
+        tokens: updatedPlayer.tokens,
+        tokensOut: updatedPlayer.tokensOut,
+      });
+    } catch (responseError) {
+      // Handle EPIPE errors when trying to send response
+      if (responseError.code === 'EPIPE' || responseError.errno === -32) {
+        console.warn('⚠️ [HINT API] Client disconnected before response could be sent (EPIPE)');
+        return null;
+      }
+      throw responseError;
+    }
   } catch (error) {
+    // Handle EPIPE errors gracefully (client disconnected)
+    if (error.code === 'EPIPE' || error.errno === -32) {
+      console.warn('⚠️ [HINT API] Client disconnected (EPIPE)');
+      return null;
+    }
+    
     console.error('Error getting hint:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to get hint' },
-      { status: 500 }
-    );
+    
+    try {
+      return NextResponse.json(
+        { success: false, error: 'Failed to get hint' },
+        { status: 500 }
+      );
+    } catch (responseError) {
+      // If response write fails (e.g., client disconnected), log and return null
+      if (responseError.code === 'EPIPE' || responseError.errno === -32) {
+        console.warn('⚠️ [HINT API] Failed to send error response (client disconnected)');
+        return null;
+      }
+      throw responseError;
+    }
   }
 }
 

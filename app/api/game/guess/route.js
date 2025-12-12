@@ -353,15 +353,41 @@ export async function POST(request) {
       inGraph: responseData.inGraph 
     });
     fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'guess/route.js:169', message: 'Returning success response', data: responseData, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => {});
-    return NextResponse.json(responseData);
+    
+    try {
+      return NextResponse.json(responseData);
+    } catch (responseError) {
+      // Handle EPIPE errors when trying to send response
+      if (responseError.code === 'EPIPE' || responseError.errno === -32) {
+        console.warn('⚠️ [GUESS API] Client disconnected before response could be sent (EPIPE)');
+        return null;
+      }
+      throw responseError;
+    }
   } catch (error) {
+    // Handle EPIPE errors gracefully (client disconnected)
+    if (error.code === 'EPIPE' || error.errno === -32) {
+      console.warn('⚠️ [GUESS API] Client disconnected before response could be sent (EPIPE)');
+      return null;
+    }
+    
     console.error('🔴 [GUESS API] Error processing guess:', error);
     console.error('🔴 [GUESS API] Error stack:', error.stack);
     fetch('http://127.0.0.1:7242/ingest/1996d2c0-4a06-4b2b-90dc-7ea5058eb960', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'guess/route.js:181', message: 'Exception in guess handler', data: { errorMessage: error.message, errorStack: error.stack }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => {});
-    return NextResponse.json(
-      { success: false, error: 'Failed to process guess' },
-      { status: 500 }
-    );
+    
+    try {
+      return NextResponse.json(
+        { success: false, error: 'Failed to process guess' },
+        { status: 500 }
+      );
+    } catch (responseError) {
+      // If response write fails (e.g., client disconnected), log and return null
+      if (responseError.code === 'EPIPE' || responseError.errno === -32) {
+        console.warn('⚠️ [GUESS API] Failed to send error response (client disconnected)');
+        return null;
+      }
+      throw responseError;
+    }
   }
 }
 

@@ -22,7 +22,9 @@ export async function GET(request) {
     const sortField = validSortFields.includes(sortBy) ? sortBy : 'totalScore';
     
     // Fetch leaderboard sorted by specified field
-    const leaderboard = await PlayerStats.find({ totalGames: { $gt: 0 } })
+    // Show players who have earned any points (not just completed games)
+    // This allows players from active games to appear in the leaderboard
+    const leaderboard = await PlayerStats.find({ totalScore: { $gt: 0 } })
       .sort({ [sortField]: -1 })
       .limit(limit)
       .select('nickname totalGames totalScore gamesWon averageScore bestScore lastPlayed')

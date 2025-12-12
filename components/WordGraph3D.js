@@ -1,75 +1,38 @@
 'use client';
 
-import { useRef, useMemo, useEffect } from 'react';
+import { useRef, useMemo, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Text, Sphere } from '@react-three/drei';
+import { OrbitControls, Text } from '@react-three/drei';
+import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import Starfield from './Starfield';
+import Nebula from './Nebula';
 import ShootingSystem from './ShootingSystem';
 import Crosshair from './Crosshair';
 import VectorGem from './VectorGem';
+import BadAsteroid from './BadAsteroid';
+import FacetedGem from './FacetedGem';
+import PlayerShip from './PlayerShip';
 
 function WordNode({ word, isCurrent, isRelated, onClick, themeMode = 'dark' }) {
-  const meshRef = useRef();
-  const glowRef = useRef();
-
   // MongoDB brand colors with enhanced visuals
-  // Balanced node sizes for good visibility
   const baseColor = isCurrent ? '#00ED64' : isRelated ? '#FFB800' : '#00684A';
-  const glowColor = isCurrent ? '#00ED64' : isRelated ? '#FFB800' : '#00684A';
-  const baseScale = isCurrent ? 12 : isRelated ? 10 : 8; // Balanced sizes
-
-  useFrame((state) => {
-    if (meshRef.current) {
-      if (isCurrent) {
-        // Pulsing animation for current node
-        const pulse = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.15;
-        meshRef.current.scale.setScalar(baseScale * pulse);
-        if (glowRef.current) {
-          glowRef.current.scale.setScalar(baseScale * pulse * 1.2);
-        }
-      } else if (isRelated) {
-        // Subtle glow for related nodes
-        const glow = 1 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
-        if (glowRef.current) {
-          glowRef.current.scale.setScalar(baseScale * 1.3 * glow);
-        }
-      }
-      
-      // Slow rotation for visual interest
-      meshRef.current.rotation.y += 0.005;
-    }
-  });
+  const baseScale = isCurrent ? 12 : isRelated ? 10 : 8;
 
   // Ensure position is a valid array
   const pos = Array.isArray(word.position) && word.position.length === 3
     ? word.position
     : [0, 0, 0];
-  
-  // Debug first few words
-  if (word.label && (word.label === 'database' || word.label === 'query' || word.label === 'index' || word.label === 'collection')) {
-    console.log('🟡 WordNode rendering:', word.label, 'at position', pos, 'id:', word.id);
-  }
 
   return (
     <group position={pos}>
-      {/* Glow effect for current and related nodes */}
-      {(isCurrent || isRelated) && (
-        <Sphere ref={glowRef} args={[baseScale * 1.2, 16, 16]}>
-          <meshStandardMaterial
-            color={glowColor}
-            emissive={glowColor}
-            emissiveIntensity={isCurrent ? 0.8 : 0.5}
-            transparent
-            opacity={0.2}
-          />
-        </Sphere>
-      )}
-      
-      {/* Main node sphere */}
-      <Sphere
-        ref={meshRef}
-        args={[baseScale, 32, 32]}
+      {/* Faceted Gem - replaces spheres */}
+      <FacetedGem
+        size={baseScale}
+        color={baseColor}
+        isActive={isCurrent}
+        isHighlighted={isRelated}
+        emissiveIntensity={isCurrent ? 0.4 : isRelated ? 0.3 : 0.2}
         onClick={onClick}
         onPointerOver={(e) => {
           e.stopPropagation();
@@ -79,29 +42,21 @@ function WordNode({ word, isCurrent, isRelated, onClick, themeMode = 'dark' }) {
           document.body.style.cursor = 'default';
         }}
       >
-        <meshStandardMaterial
-          color={baseColor}
-          emissive={isCurrent ? baseColor : isRelated ? glowColor : '#000000'}
-          emissiveIntensity={isCurrent ? 1.2 : isRelated ? 0.6 : 0}
-          metalness={0.8}
-          roughness={0.2}
-        />
-      </Sphere>
-      
-      {/* Word label with better styling */}
-      <Text
-        position={[0, baseScale + 3, 0]}
-        fontSize={3}
-        color={isCurrent ? '#00ED64' : (themeMode === 'dark' ? '#FFFFFF' : '#001E2B')}
-        anchorX="center"
-        anchorY="middle"
-        outlineWidth={themeMode === 'dark' ? 0.2 : 0.4}
-        outlineColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
-        strokeWidth={themeMode === 'dark' ? 0.02 : 0.08}
-        strokeColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
-      >
-        {word.label}
-      </Text>
+        {/* Word label */}
+        <Text
+          position={[0, baseScale + 3, 0]}
+          fontSize={3}
+          color={isCurrent ? '#00ED64' : (themeMode === 'dark' ? '#FFFFFF' : '#001E2B')}
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={themeMode === 'dark' ? 0.2 : 0.4}
+          outlineColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
+          strokeWidth={themeMode === 'dark' ? 0.02 : 0.08}
+          strokeColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
+        >
+          {word.label}
+        </Text>
+      </FacetedGem>
     </group>
   );
 }
@@ -368,11 +323,14 @@ export default function WordGraph3D({
   onWordClick,
   vectorGems = [],
   onGemHit = null,
+  badAsteroids = [],
+  onBadAsteroidHit = null,
   themeMode = 'dark',
   onCameraControlsReady = null,
 }) {
   const controlsRef = useRef();
   const cameraRef = useRef();
+  const [shipPosition, setShipPosition] = useState(null);
   
   console.log('🔵 WordGraph3D rendered with', words.length, 'words');
   
@@ -506,8 +464,11 @@ export default function WordGraph3D({
           background: themeMode === 'dark' ? '#001E2B' : '#F5F5F5' 
         }}
       >
+      {/* Nebula clouds - atmospheric depth */}
+      <Nebula count={8} radius={4000} themeMode={themeMode} />
+
       {/* Starfield background */}
-      <Starfield count={3000} radius={300} />
+      <Starfield count={1000} radius={5000} />
       
       {/* Enhanced lighting */}
       <ambientLight intensity={0.3} />
@@ -566,16 +527,43 @@ export default function WordGraph3D({
         );
       })}
 
-      {/* Shooting System - allows firing bullets at words and gems */}
+      {/* Render Bad Asteroids */}
+      {badAsteroids && badAsteroids.map(asteroid => {
+        const now = Date.now();
+        if (asteroid.hitBy || (now - asteroid.spawnTime) >= 30000) return null;
+        return (
+          <BadAsteroid
+            key={asteroid.id}
+            asteroid={asteroid}
+            onHit={onBadAsteroidHit}
+            themeMode={themeMode}
+          />
+        );
+      })}
+
+      {/* Player Ship - Asteroids-style triangle at bottom center */}
+      <PlayerShip
+        color="#00ED64"
+        scale={1.2}
+        offset={{ x: 0, y: -1.2, z: -2 }}
+        showThrusters={true}
+        themeMode={themeMode}
+        onPositionUpdate={setShipPosition}
+      />
+
+      {/* Shooting System - fires from ship position */}
       <ShootingSystem
         words={filteredWords}
         onWordHit={onWordClick}
         vectorGems={vectorGems}
         onGemHit={onGemHit}
+        badAsteroids={badAsteroids}
+        onBadAsteroidHit={onBadAsteroidHit}
         enabled={true}
         themeMode={themeMode}
+        shipPosition={shipPosition}
       />
-      
+
       <OrbitControls
         ref={controlsRef}
         enablePan={true}
@@ -588,7 +576,7 @@ export default function WordGraph3D({
         zoomSpeed={3.0} // Much faster zooming
         rotateSpeed={1.0} // Smooth rotation
         // Allow free movement - no target constraint
-        // Pan with right-click or middle mouse, rotate with left-click
+        // Pan with right-click or middle mouse, rotate with right-click (left is for shooting)
         screenSpacePanning={false} // Pan in world space, not screen space
         // Full rotation freedom
         minPolarAngle={0} // Allow looking straight up
@@ -601,7 +589,23 @@ export default function WordGraph3D({
         // Remove any target constraints - allow free panning anywhere
         // Don't constrain to a target - allow free movement through space
         makeDefault={true}
+        mouseButtons={{
+          LEFT: -1,                   // Disable left button (used for shooting)
+          MIDDLE: THREE.MOUSE.DOLLY,  // Middle button/wheel for zoom
+          RIGHT: THREE.MOUSE.ROTATE,  // Right button for rotation
+        }}
       />
+
+      {/* Post-processing effects - subtle bloom */}
+      <EffectComposer>
+        <Bloom
+          intensity={0.3}
+          luminanceThreshold={0.6}
+          luminanceSmoothing={0.9}
+          mipmapBlur={true}
+          radius={0.5}
+        />
+      </EffectComposer>
     </Canvas>
     <Crosshair themeMode={themeMode} />
     </div>

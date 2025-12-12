@@ -36,19 +36,15 @@ export default function InviteFriends({ gameCode, onCopy }) {
         gap: 0.5,
         px: 1.5,
         py: 0.5,
-        borderRadius: 0, // Sharp corners for 8-bit look
-        border: '3px solid',
-        borderColor: 'primary.main',
+        borderRadius: 2,
+        border: '1px solid',
+        borderColor: 'rgba(0, 237, 100, 0.3)',
         backgroundColor: 'rgba(0, 237, 100, 0.1)',
-        boxShadow: '3px 3px 0px rgba(0, 0, 0, 0.3)',
-        imageRendering: 'pixelated',
-        imageRendering: '-moz-crisp-edges',
-        imageRendering: 'crisp-edges',
-        transition: 'all 0.1s ease',
+        boxShadow: '0 2px 8px rgba(0, 237, 100, 0.15)',
+        transition: 'all 0.2s ease',
         '&:hover': {
           backgroundColor: 'rgba(0, 237, 100, 0.15)',
-          transform: 'translate(-1px, -1px)',
-          boxShadow: '4px 4px 0px rgba(0, 0, 0, 0.3)',
+          boxShadow: '0 4px 12px rgba(0, 237, 100, 0.25)',
         },
       }}
     >
@@ -71,7 +67,8 @@ export default function InviteFriends({ gameCode, onCopy }) {
             fontWeight: 700,
             fontSize: { xs: '0.9rem', sm: '1rem' },
             letterSpacing: '0.1em',
-            fontFamily: 'monospace',
+            fontFamily: '"Euclid Circular A", monospace',
+            fontWeight: 600,
           }}
         >
           {gameCode}
@@ -84,19 +81,20 @@ export default function InviteFriends({ gameCode, onCopy }) {
           sx={{
             color: copied ? 'success.main' : 'primary.main',
             ml: 0.5,
-            borderRadius: 0, // Sharp corners for 8-bit look
-            border: '2px solid',
-            borderColor: copied ? 'success.main' : 'primary.main',
-            boxShadow: '2px 2px 0px rgba(0, 0, 0, 0.2)',
-            transition: 'all 0.1s ease',
+            borderRadius: 1,
+            border: '1px solid',
+            borderColor: copied
+              ? 'rgba(76, 175, 80, 0.5)'
+              : 'rgba(0, 237, 100, 0.3)',
+            boxShadow: copied
+              ? '0 2px 8px rgba(76, 175, 80, 0.2)'
+              : '0 2px 8px rgba(0, 237, 100, 0.15)',
+            transition: 'all 0.2s ease',
             '&:hover': {
               backgroundColor: 'rgba(0, 237, 100, 0.2)',
-              transform: 'translate(-1px, -1px)',
-              boxShadow: '3px 3px 0px rgba(0, 0, 0, 0.2)',
-            },
-            '&:active': {
-              transform: 'translate(1px, 1px)',
-              boxShadow: '1px 1px 0px rgba(0, 0, 0, 0.2)',
+              boxShadow: copied
+                ? '0 4px 12px rgba(76, 175, 80, 0.3)'
+                : '0 4px 12px rgba(0, 237, 100, 0.25)',
             },
           }}
         >

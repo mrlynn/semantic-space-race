@@ -34,26 +34,21 @@ export default function NavigationControls({
   const buttonStyle = {
     color: 'primary.main',
     bgcolor: isDark ? 'rgba(2, 52, 48, 0.9)' : 'rgba(255, 255, 255, 0.95)',
-    border: '2px solid',
-    borderColor: 'primary.main',
-    borderRadius: 0, // Sharp corners for 8-bit look
+    border: '1px solid',
+    borderColor: 'rgba(0, 237, 100, 0.3)',
+    borderRadius: 2,
     width: 44,
     height: 44,
-    boxShadow: '2px 2px 0px rgba(0, 0, 0, 0.3)',
-    imageRendering: 'pixelated',
-    imageRendering: '-moz-crisp-edges',
-    imageRendering: 'crisp-edges',
+    boxShadow: '0 2px 8px rgba(0, 237, 100, 0.15)',
     '&:hover': {
       bgcolor: isDark ? 'rgba(0, 104, 74, 0.3)' : 'rgba(0, 237, 100, 0.1)',
-      borderColor: 'primary.light',
-      transform: 'translate(-1px, -1px)',
-      boxShadow: '3px 3px 0px rgba(0, 0, 0, 0.3)',
+      borderColor: 'rgba(0, 237, 100, 0.5)',
+      boxShadow: '0 4px 12px rgba(0, 237, 100, 0.25)',
     },
     '&:active': {
-      transform: 'translate(1px, 1px)',
-      boxShadow: '1px 1px 0px rgba(0, 0, 0, 0.3)',
+      boxShadow: '0 1px 4px rgba(0, 237, 100, 0.2)',
     },
-    transition: 'all 0.1s ease',
+    transition: 'all 0.2s ease',
   };
 
   return (
@@ -64,17 +59,14 @@ export default function NavigationControls({
         ...positionStyles[position],
         zIndex: 1100,
         p: 1.5,
-        borderRadius: 0, // Sharp corners for 8-bit look
-        border: '3px solid',
-        borderColor: 'primary.main',
+        borderRadius: 3,
+        border: '1px solid',
+        borderColor: 'rgba(0, 237, 100, 0.2)',
         background: isDark
           ? 'linear-gradient(135deg, rgba(0, 104, 74, 0.3) 0%, rgba(2, 52, 48, 0.95) 100%)'
           : 'linear-gradient(135deg, rgba(0, 237, 100, 0.1) 0%, rgba(255, 255, 255, 0.98) 100%)',
         backdropFilter: 'blur(10px)',
-        boxShadow: '6px 6px 0px rgba(0, 0, 0, 0.3)',
-        imageRendering: 'pixelated',
-        imageRendering: '-moz-crisp-edges',
-        imageRendering: 'crisp-edges',
+        boxShadow: '0 8px 32px rgba(0, 237, 100, 0.15)',
         display: { xs: 'none', md: 'flex' },
         flexDirection: 'column',
         gap: 1,

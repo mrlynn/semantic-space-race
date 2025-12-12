@@ -17,6 +17,9 @@ import {
   Drawer,
   IconButton,
   useTheme,
+  Tabs,
+  Tab,
+  Collapse,
 } from '@mui/material';
 import { getSimilarityFeedback } from '@/lib/utils';
 import BrandShapeDecoration from './BrandShapeDecoration';
@@ -37,6 +40,8 @@ export default function SemanticHopHUD({
   hintUsed = false,
   hintText = '',
   onGetHint = null,
+  rerankerUsed = false,
+  onUseReranker = null,
   isMobile = false,
   mobileOpen = false,
   onMobileClose = () => {},
@@ -46,6 +51,7 @@ export default function SemanticHopHUD({
   onMarkReady = null,
   currentTarget = null,
   tokens = 15,
+  practiceMode = false,
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -53,6 +59,8 @@ export default function SemanticHopHUD({
   const [guess, setGuess] = useState('');
   const [isMarkingReady, setIsMarkingReady] = useState(false);
   const [cheatRevealed, setCheatRevealed] = useState(false);
+  const [wordListTab, setWordListTab] = useState(0); // 0 = Neighbors, 1 = Related Words
+  const [guessHistoryExpanded, setGuessHistoryExpanded] = useState(true);
   const keySequenceRef = useRef([]);
   const keyTimeoutRef = useRef(null);
   
@@ -192,7 +200,8 @@ export default function SemanticHopHUD({
         width: isMobile ? '85vw' : 400,
         maxWidth: 400,
         height: '100%',
-        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
         p: 3,
         bgcolor: isDark ? 'rgba(2, 52, 48, 0.95)' : 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(10px)',
@@ -214,13 +223,17 @@ export default function SemanticHopHUD({
 
       {/* Combined Game Info & Tokens */}
       <Paper elevation={3} sx={{
-        p: 2.5,
-        mb: 2.5,
-        border: '3px solid',
-        borderColor: tokens < 5 ? 'warning.main' : 'primary.main',
-        borderRadius: 0, // Sharp corners for 8-bit look
+        p: 2,
+        mb: 1.5,
+        border: '1px solid',
+        borderColor: tokens < 5
+          ? 'rgba(255, 192, 16, 0.3)'
+          : 'rgba(0, 237, 100, 0.2)',
+        borderRadius: 3,
         background: tokens < 5 ? warningGradient : paperGradient,
-        boxShadow: '6px 6px 0px rgba(0, 0, 0, 0.3)',
+        boxShadow: tokens < 5
+          ? '0 8px 32px rgba(255, 192, 16, 0.2)'
+          : '0 8px 32px rgba(0, 237, 100, 0.15)',
         position: 'relative',
         overflow: 'hidden',
       }}>
@@ -235,19 +248,32 @@ export default function SemanticHopHUD({
         
         {/* Game Info Section */}
         <Box sx={{ position: 'relative', zIndex: 1, mb: 2.5 }}>
-          <Typography variant="h6" gutterBottom color="primary" sx={{ fontWeight: 700 }}>
-            Game Code: {gameCode}
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-            <Typography variant="body1" sx={{ fontWeight: 600 }}>
-              Round {roundNumber}/{maxRounds}
-            </Typography>
-            {timeRemaining !== null && (
-              <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 600 }}>
-                Time: {Math.ceil(timeRemaining / 1000)}s
+          {practiceMode ? (
+            <Box>
+              <Typography variant="h6" gutterBottom color="warning.main" sx={{ fontWeight: 700 }}>
+                🎮 Practice Mode
               </Typography>
-            )}
-          </Box>
+              <Typography variant="body2" color="text.secondary">
+                Free exploration - no game constraints
+              </Typography>
+            </Box>
+          ) : (
+            <>
+              <Typography variant="h6" gutterBottom color="primary" sx={{ fontWeight: 700 }}>
+                Game Code: {gameCode}
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                  Round {roundNumber}/{maxRounds}
+                </Typography>
+                {timeRemaining !== null && (
+                  <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 600 }}>
+                    Time: {Math.ceil(timeRemaining / 1000)}s
+                  </Typography>
+                )}
+              </Box>
+            </>
+          )}
         </Box>
 
         {/* Divider */}
@@ -267,9 +293,11 @@ export default function SemanticHopHUD({
               <Box sx={{
                 width: 40,
                 height: 40,
-                borderRadius: 0,
-                border: '3px solid',
-                borderColor: tokens < 5 ? 'warning.main' : 'primary.main',
+                borderRadius: 2,
+                border: '2px solid',
+                borderColor: tokens < 5
+                  ? 'rgba(255, 192, 16, 0.5)'
+                  : 'rgba(0, 237, 100, 0.5)',
                 bgcolor: isDark 
                   ? (tokens < 5 ? 'rgba(255, 192, 16, 0.2)' : 'rgba(0, 237, 100, 0.2)')
                   : (tokens < 5 ? 'rgba(255, 192, 16, 0.1)' : 'rgba(0, 237, 100, 0.1)'),
@@ -315,9 +343,11 @@ export default function SemanticHopHUD({
             {/* Shooting Cost */}
             <Box sx={{
               p: 1.5,
-              borderRadius: 0,
-              border: '2px solid',
-              borderColor: tokens < 2 ? 'error.main' : 'primary.main',
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: tokens < 2
+                ? 'rgba(255, 0, 0, 0.3)'
+                : 'rgba(0, 237, 100, 0.3)',
               bgcolor: isDark 
                 ? (tokens < 2 ? 'rgba(255, 0, 0, 0.1)' : 'rgba(0, 237, 100, 0.1)')
                 : (tokens < 2 ? 'rgba(255, 0, 0, 0.05)' : 'rgba(0, 237, 100, 0.05)'),
@@ -338,9 +368,11 @@ export default function SemanticHopHUD({
             {/* Hop Cost */}
             <Box sx={{
               p: 1.5,
-              borderRadius: 0,
-              border: '2px solid',
-              borderColor: tokens < 3 ? 'error.main' : 'primary.main',
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: tokens < 3
+                ? 'rgba(255, 0, 0, 0.3)'
+                : 'rgba(0, 237, 100, 0.3)',
               bgcolor: isDark 
                 ? (tokens < 3 ? 'rgba(255, 0, 0, 0.1)' : 'rgba(0, 237, 100, 0.1)')
                 : (tokens < 3 ? 'rgba(255, 0, 0, 0.05)' : 'rgba(0, 237, 100, 0.05)'),
@@ -361,9 +393,11 @@ export default function SemanticHopHUD({
             {/* Hint Cost */}
             <Box sx={{
               p: 1.5,
-              borderRadius: 0,
-              border: '2px solid',
-              borderColor: tokens < 5 ? 'error.main' : 'primary.main',
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: tokens < 5
+                ? 'rgba(255, 0, 0, 0.3)'
+                : 'rgba(0, 237, 100, 0.3)',
               bgcolor: isDark 
                 ? (tokens < 5 ? 'rgba(255, 0, 0, 0.1)' : 'rgba(0, 237, 100, 0.1)')
                 : (tokens < 5 ? 'rgba(255, 0, 0, 0.05)' : 'rgba(0, 237, 100, 0.05)'),
@@ -381,21 +415,37 @@ export default function SemanticHopHUD({
               </Typography>
             </Box>
           </Box>
+
+          {/* Progress Indicator - Integrated */}
+          <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+              Best Similarity: {Math.round(bestSimilarity * 100)}%
+            </Typography>
+            <LinearProgress
+              variant="determinate"
+              value={bestSimilarity * 100}
+              sx={{
+                height: 6,
+                borderRadius: 1,
+                backgroundColor: 'rgba(0, 237, 100, 0.1)',
+                '& .MuiLinearProgress-bar': {
+                  backgroundColor: '#00ED64',
+                },
+              }}
+            />
+          </Box>
         </Box>
       </Paper>
 
       {/* Riddle/Definition */}
       <Paper elevation={3} sx={{
-        p: 2.5,
-        mb: 2.5,
-        border: '3px solid',
-        borderColor: 'primary.main',
-        borderRadius: 0, // Sharp corners for 8-bit look
+        p: 2,
+        mb: 1.5,
+        border: '1px solid',
+        borderColor: 'rgba(0, 237, 100, 0.2)',
+        borderRadius: 3,
         background: paperGradient,
-        boxShadow: '6px 6px 0px rgba(0, 0, 0, 0.3)',
-        imageRendering: 'pixelated',
-        imageRendering: '-moz-crisp-edges',
-        imageRendering: 'crisp-edges',
+        boxShadow: '0 8px 32px rgba(0, 237, 100, 0.15)',
         position: 'relative',
         overflow: 'hidden',
       }}>
@@ -404,8 +454,13 @@ export default function SemanticHopHUD({
           Riddle
         </Typography>
         <Typography variant="body1" sx={{ minHeight: 100 }}>
-          {definition || 'Waiting for round to start...'}
+          {definition || (practiceMode ? 'Loading riddle...' : 'Waiting for round to start...')}
         </Typography>
+        {practiceMode && currentTarget && (
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic', display: 'block', mt: 1 }}>
+            Practice Mode: Try to find "{currentTarget.label}"
+          </Typography>
+        )}
         {/* Dev cheat: Target word reveal */}
         {isDevelopment && cheatRevealed && currentTarget && (
           <Box
@@ -423,7 +478,7 @@ export default function SemanticHopHUD({
             <Typography variant="caption" color="warning.main" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
               🎮 DEV MODE - Target Word:
             </Typography>
-            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 700, color: 'warning.main' }}>
+            <Typography variant="body2" sx={{ fontFamily: '"Euclid Circular A", monospace', fontWeight: 700, color: 'warning.main' }}>
               {currentTarget.label}
             </Typography>
           </Box>
@@ -433,12 +488,13 @@ export default function SemanticHopHUD({
       {/* Ready Section - Show when waiting for players to be ready */}
       {roundPhase === 'WAITING_FOR_READY' && (
         <Paper elevation={3} sx={{
-          p: 2.5,
-          mb: 2.5,
-          border: '2px solid',
-          borderColor: 'warning.main',
-          borderRadius: 0, // Sharp corners for 8-bit look
+          p: 2,
+          mb: 1.5,
+          border: '1px solid',
+          borderColor: 'rgba(255, 192, 16, 0.3)',
+          borderRadius: 3,
           background: warningGradient,
+          boxShadow: '0 8px 32px rgba(255, 192, 16, 0.2)',
           position: 'relative',
           overflow: 'hidden',
         }}>
@@ -454,9 +510,9 @@ export default function SemanticHopHUD({
                 mb: 2,
                 p: 2,
                 bgcolor: isDark ? 'rgba(0, 237, 100, 0.15)' : 'rgba(0, 237, 100, 0.1)',
-                borderRadius: 0, // Sharp corners for 8-bit look
-                border: '2px solid',
-                borderColor: 'primary.main',
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: 'rgba(0, 237, 100, 0.3)',
                 position: 'relative',
                 zIndex: 1,
               }}
@@ -522,10 +578,13 @@ export default function SemanticHopHUD({
       {/* Hop Input - Hide when waiting for ready */}
       {roundPhase !== 'WAITING_FOR_READY' && (
       <Paper elevation={3} sx={{
-        p: 2.5,
-        mb: 2.5,
-        borderRadius: 0, // Sharp corners for 8-bit look
+        p: 2,
+        mb: 1.5,
+        border: '1px solid',
+        borderColor: 'rgba(0, 237, 100, 0.2)',
+        borderRadius: 3,
         background: paperGradient,
+        boxShadow: '0 8px 32px rgba(0, 237, 100, 0.15)',
       }}>
         <form onSubmit={handleSubmit}>
           <TextField
@@ -561,15 +620,16 @@ export default function SemanticHopHUD({
 
         {isGuessing && (
           <Box sx={{ mt: 2 }}>
-            <LinearProgress 
-              sx={{ 
-                height: 4, 
-                borderRadius: 0, // Sharp corners for 8-bit look
+            <LinearProgress
+              sx={{
+                height: 4,
+                borderRadius: 2,
                 backgroundColor: 'rgba(0, 237, 100, 0.1)',
                 '& .MuiLinearProgress-bar': {
                   backgroundColor: '#00ED64',
+                  borderRadius: 2,
                 },
-              }} 
+              }}
             />
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
               Calculating similarity... This may take a moment if the word needs an embedding.
@@ -598,23 +658,34 @@ export default function SemanticHopHUD({
       </Paper>
       )}
 
-      {/* Guess History */}
+      {/* Guess History - Compact with max height */}
       {guesses.length > 0 && (
         <Paper elevation={3} sx={{
-          p: 2.5,
-          mb: 2.5,
-          border: '2px solid',
-          borderColor: 'primary.main',
-          borderRadius: 0, // Sharp corners for 8-bit look
+          p: 2,
+          mb: 1.5,
+          border: '1px solid',
+          borderColor: 'rgba(0, 237, 100, 0.2)',
+          borderRadius: 3,
           background: paperGradient,
+          boxShadow: '0 8px 32px rgba(0, 237, 100, 0.15)',
           position: 'relative',
           overflow: 'hidden',
         }}>
           <BrandShapeDecoration position="bottom-right" size={80} opacity={brandShapeOpacity.low} shapeNumber={36} />
-          <Typography variant="h6" gutterBottom color="primary" sx={{ position: 'relative', zIndex: 1 }}>
-            Your Guesses
-          </Typography>
-          <List dense>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Typography variant="h6" color="primary" sx={{ position: 'relative', zIndex: 1, mb: 0 }}>
+              Guesses ({guesses.length})
+            </Typography>
+            <Button
+              size="small"
+              onClick={() => setGuessHistoryExpanded(!guessHistoryExpanded)}
+              sx={{ minWidth: 'auto', px: 1 }}
+            >
+              {guessHistoryExpanded ? '−' : '+'}
+            </Button>
+          </Box>
+          <Collapse in={guessHistoryExpanded}>
+          <List dense sx={{ maxHeight: 200, overflow: 'auto' }}>
             {[...guesses].reverse().map((guess, index) => {
               const guessFeedback = getSimilarityFeedback(guess.similarity);
               const inGraph = guess.inGraph !== false; // Default to true if not specified
@@ -660,89 +731,207 @@ export default function SemanticHopHUD({
               );
             })}
           </List>
+          </Collapse>
         </Paper>
       )}
 
-      {/* Progress Indicator */}
+      {/* Combined Neighbors & Related Words with Tabs */}
       <Paper elevation={3} sx={{
-        p: 2.5,
-        mb: 2.5,
-        borderRadius: 0, // Sharp corners for 8-bit look
+        p: 0,
+        mb: 1.5,
+        border: '1px solid',
+        borderColor: 'rgba(0, 237, 100, 0.2)',
+        borderRadius: 3,
         background: paperGradient,
+        boxShadow: '0 8px 32px rgba(0, 237, 100, 0.15)',
+        overflow: 'hidden',
       }}>
-        <Typography variant="body2" gutterBottom>
-          Best Similarity: {Math.round(bestSimilarity * 100)}%
-        </Typography>
-        <LinearProgress
-          variant="determinate"
-          value={bestSimilarity * 100}
+        <Tabs
+          value={wordListTab}
+          onChange={(_, newValue) => setWordListTab(newValue)}
+          variant="fullWidth"
           sx={{
-            mt: 1,
-            height: 8,
-            borderRadius: 1,
-            backgroundColor: 'rgba(0, 237, 100, 0.1)',
-            '& .MuiLinearProgress-bar': {
-              backgroundColor: '#00ED64',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            '& .MuiTab-root': {
+              minHeight: 48,
+              fontSize: '0.875rem',
+              fontWeight: 600,
             },
           }}
-        />
-      </Paper>
+        >
+          <Tab label={`Nearby (${neighbors.length})`} />
+          <Tab label={`Similar (${relatedWords.length})`} />
+        </Tabs>
 
-      {/* Neighbor Panel */}
-      <Paper elevation={3} sx={{
-        p: 2.5,
-        mb: 2.5,
-        borderRadius: 0, // Sharp corners for 8-bit look
-        background: paperGradient,
-      }}>
-        <Typography variant="h6" gutterBottom>
-          Nearby Words
-        </Typography>
-        <List dense>
-          {neighbors.length > 0 ? (
-            neighbors.map((neighbor, index) => (
-              <ListItem key={index} disablePadding>
-                <ListItemButton 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('🔵 [HUD] Neighbor clicked:', neighbor.label, 'onHop type:', typeof onHop);
-                    if (onHop && typeof onHop === 'function') {
-                      try {
-                        onHop(neighbor.label);
-                      } catch (error) {
-                        console.error('🔴 [HUD] Error calling onHop from neighbor:', error);
-                      }
-                    } else {
-                      console.error('🔴 [HUD] onHop is not a function:', onHop);
-                    }
-                  }}
-                >
-                  <ListItemText
-                    primary={neighbor.label}
-                    secondary={`${Math.round(neighbor.similarity * 100)}% similar`}
-                  />
-                </ListItemButton>
-              </ListItem>
-            ))
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              No neighbors available
-            </Typography>
+        <Box sx={{ p: 2 }}>
+          {wordListTab === 0 && (
+            <List dense sx={{ maxHeight: 180, overflow: 'auto' }}>
+              {neighbors.length > 0 ? (
+                neighbors.map((neighbor, index) => (
+                  <ListItem key={index} disablePadding>
+                    <ListItemButton
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (onHop && typeof onHop === 'function') {
+                          try {
+                            onHop(neighbor.label);
+                          } catch (error) {
+                            console.error('🔴 [HUD] Error calling onHop from neighbor:', error);
+                          }
+                        }
+                      }}
+                    >
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography 
+                              component="span"
+                              sx={{
+                                fontWeight: neighbor.highlyRelevant ? 700 : 'normal',
+                                color: neighbor.highlyRelevant ? '#FFD700' : 'inherit',
+                              }}
+                            >
+                              {neighbor.label}
+                            </Typography>
+                            {neighbor.reranked && (
+                              <Chip
+                                label={neighbor.highlyRelevant ? "⭐ Top Pick" : "🔄 Reranked"}
+                                size="small"
+                                sx={{
+                                  height: 20,
+                                  fontSize: '0.65rem',
+                                  bgcolor: neighbor.highlyRelevant 
+                                    ? 'rgba(255, 215, 0, 0.3)' 
+                                    : 'rgba(147, 51, 234, 0.2)',
+                                  border: `1px solid ${neighbor.highlyRelevant ? 'rgba(255, 215, 0, 0.8)' : 'rgba(147, 51, 234, 0.5)'}`,
+                                  color: neighbor.highlyRelevant ? '#FFD700' : '#9333EA',
+                                  fontWeight: 700,
+                                  boxShadow: neighbor.highlyRelevant ? '0 2px 8px rgba(255, 215, 0, 0.3)' : 'none',
+                                }}
+                              />
+                            )}
+                          </Box>
+                        }
+                        secondary={
+                          neighbor.reranked && neighbor.targetSimilarity !== undefined
+                            ? `🎯 ${Math.round(neighbor.targetSimilarity * 100)}% to target (reranked)`
+                            : `${Math.round(neighbor.similarity * 100)}% similar`
+                        }
+                        sx={{
+                          '& .MuiListItemText-primary': {
+                            fontWeight: neighbor.highlyRelevant ? 700 : 'normal',
+                          },
+                          '& .MuiListItemText-secondary': {
+                            color: neighbor.reranked && neighbor.highlyRelevant ? 'rgba(255, 215, 0, 0.9)' : 'inherit',
+                            fontWeight: neighbor.highlyRelevant ? 600 : 'normal',
+                          }
+                        }}
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                ))
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No neighbors available
+                </Typography>
+              )}
+            </List>
           )}
-        </List>
+
+          {wordListTab === 1 && (
+            <List dense sx={{ maxHeight: 180, overflow: 'auto' }}>
+              {relatedWords.length > 0 ? (
+                relatedWords.map((word, index) => (
+                  <ListItem key={index} disablePadding>
+                    <ListItemButton
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (onHop && typeof onHop === 'function') {
+                          try {
+                            onHop(word.label);
+                          } catch (error) {
+                            console.error('🔴 [HUD] Error calling onHop from related word:', error);
+                          }
+                        }
+                      }}
+                    >
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography 
+                              component="span"
+                              sx={{
+                                fontWeight: word.highlyRelevant ? 700 : 'normal',
+                                color: word.highlyRelevant ? '#FFD700' : 'inherit',
+                              }}
+                            >
+                              {word.label}
+                            </Typography>
+                            {word.reranked && (
+                              <Chip
+                                label={word.highlyRelevant ? "⭐ Top Pick" : "🔄 Reranked"}
+                                size="small"
+                                sx={{
+                                  height: 20,
+                                  fontSize: '0.65rem',
+                                  bgcolor: word.highlyRelevant 
+                                    ? 'rgba(255, 215, 0, 0.3)' 
+                                    : 'rgba(147, 51, 234, 0.2)',
+                                  border: `1px solid ${word.highlyRelevant ? 'rgba(255, 215, 0, 0.8)' : 'rgba(147, 51, 234, 0.5)'}`,
+                                  color: word.highlyRelevant ? '#FFD700' : '#9333EA',
+                                  fontWeight: 700,
+                                  boxShadow: word.highlyRelevant ? '0 2px 8px rgba(255, 215, 0, 0.3)' : 'none',
+                                }}
+                              />
+                            )}
+                          </Box>
+                        }
+                        secondary={
+                          word.reranked && word.targetSimilarity !== undefined
+                            ? `🎯 ${Math.round(word.targetSimilarity * 100)}% to target (reranked)`
+                            : `${Math.round(word.similarity * 100)}% similar to target`
+                        }
+                        sx={{
+                          '& .MuiListItemText-primary': {
+                            fontWeight: word.highlyRelevant ? 700 : 'normal',
+                          },
+                          '& .MuiListItemText-secondary': {
+                            color: word.reranked && word.highlyRelevant ? 'rgba(255, 215, 0, 0.9)' : 'inherit',
+                            fontWeight: word.highlyRelevant ? 600 : 'normal',
+                          }
+                        }}
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                ))
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No related words available
+                </Typography>
+              )}
+            </List>
+          )}
+        </Box>
       </Paper>
 
       {/* Hint Section */}
       <Paper elevation={3} sx={{
-        p: 2.5,
-        mb: 2.5,
-        border: '2px solid',
-        borderColor: hintUsed ? 'warning.main' : 'primary.main',
-        borderRadius: 0, // Sharp corners for 8-bit look
+        p: 2,
+        mb: 1.5,
+        border: '1px solid',
+        borderColor: hintUsed
+          ? 'rgba(255, 192, 16, 0.3)'
+          : 'rgba(0, 237, 100, 0.2)',
+        borderRadius: 3,
         background: hintUsed
           ? hintGradient
           : hintGradient,
+        boxShadow: hintUsed
+          ? '0 8px 32px rgba(255, 192, 16, 0.2)'
+          : '0 8px 32px rgba(0, 237, 100, 0.15)',
         position: 'relative',
         overflow: 'hidden',
       }}>
@@ -809,49 +998,83 @@ export default function SemanticHopHUD({
         )}
       </Paper>
 
-      {/* Related Words Panel (for debugging - shows if words are loaded) */}
+      {/* Reranker Section */}
       <Paper elevation={3} sx={{
-        p: 2.5,
-        borderRadius: 0, // Sharp corners for 8-bit look
-        background: paperGradient,
+        p: 2,
+        mb: 1.5,
+        border: '1px solid',
+        borderColor: rerankerUsed
+          ? 'rgba(147, 51, 234, 0.3)'
+          : 'rgba(0, 237, 100, 0.2)',
+        borderRadius: 3,
+        background: rerankerUsed
+          ? 'linear-gradient(135deg, rgba(147, 51, 234, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%)'
+          : 'linear-gradient(135deg, rgba(0, 237, 100, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%)',
+        boxShadow: rerankerUsed
+          ? '0 8px 32px rgba(147, 51, 234, 0.2)'
+          : '0 8px 32px rgba(0, 237, 100, 0.15)',
+        position: 'relative',
+        overflow: 'hidden',
       }}>
-        <Typography variant="h6" gutterBottom>
-          Words Similar to Target
-        </Typography>
-        <List dense>
-          {relatedWords.length > 0 ? (
-            relatedWords.map((word, index) => (
-              <ListItem key={index} disablePadding>
-                <ListItemButton 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('🔵 [HUD] Related word clicked:', word.label, 'onHop type:', typeof onHop);
-                    if (onHop && typeof onHop === 'function') {
-                      try {
-                        onHop(word.label);
-                      } catch (error) {
-                        console.error('🔴 [HUD] Error calling onHop from related word:', error);
-                      }
-                    } else {
-                      console.error('🔴 [HUD] onHop is not a function:', onHop);
-                    }
-                  }}
-                >
-                  <ListItemText
-                    primary={word.label}
-                    secondary={`${Math.round(word.similarity * 100)}% similar to target`}
-                  />
-                </ListItemButton>
-              </ListItem>
-            ))
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              No related words available
-            </Typography>
+        <BrandShapeDecoration
+          position="bottom-right"
+          size={80}
+          opacity={brandShapeOpacity.medium}
+          shapeNumber={8}
+          color={rerankerUsed ? 'secondary' : 'primary'}
+        />
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+          <Typography variant="h6" gutterBottom sx={{ mb: 0 }}>
+            {rerankerUsed ? 'Reranker Applied' : '🔄 Reranker'}
+          </Typography>
+          {!rerankerUsed && onUseReranker && (
+            <Button
+              variant="outlined"
+              color="secondary"
+              size="small"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onUseReranker && typeof onUseReranker === 'function') {
+                  try {
+                    onUseReranker();
+                  } catch (error) {
+                    console.error('🔴 [HUD] Error calling onUseReranker:', error);
+                  }
+                }
+              }}
+              disabled={isGuessing || tokens < 4}
+            >
+              {tokens < 4 ? `Use (Need 4, have ${tokens})` : 'Use Reranker (4 tokens)'}
+            </Button>
           )}
-        </List>
+          {rerankerUsed && (
+            <Chip label="Used" color="secondary" size="small" />
+          )}
+        </Box>
+        {rerankerUsed ? (
+          <Box>
+            <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: 'secondary.main' }}>
+              ✅ Reranker Applied Successfully!
+            </Typography>
+            <Typography variant="body2" color="text.secondary" component="div">
+              <Box component="ul" sx={{ m: 0, pl: 2, fontSize: '0.875rem' }}>
+                <li>Word lists have been re-ordered by relevance to target</li>
+                <li>⭐ <strong>Top Pick</strong> badges mark the 3 best words</li>
+                <li>🎯 Similarity scores now show % to target</li>
+                <li>Look for words with higher target similarity!</li>
+              </Box>
+            </Typography>
+          </Box>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            Use the reranker to apply a more sophisticated ranking algorithm that highlights the most relevant words for finding the target. Words are re-ordered and top picks are marked with ⭐ badges.
+          </Typography>
+        )}
       </Paper>
+
+      {/* Bottom spacing to prevent content from being cut off */}
+      <Box sx={{ height: 24, flexShrink: 0 }} />
     </Box>
   );
 
@@ -866,11 +1089,11 @@ export default function SemanticHopHUD({
           '& .MuiDrawer-paper': {
             bgcolor: isDark ? 'rgba(2, 52, 48, 0.98)' : 'rgba(255, 255, 255, 0.98)',
             backdropFilter: 'blur(10px)',
-            borderRight: '3px solid',
-            borderColor: 'primary.main',
-            boxShadow: isDark 
-              ? '4px 0 24px rgba(0, 237, 100, 0.3)'
-              : '4px 0 24px rgba(0, 0, 0, 0.15)',
+            borderRight: '1px solid',
+            borderColor: 'rgba(0, 237, 100, 0.2)',
+            boxShadow: isDark
+              ? '-8px 0 32px rgba(0, 237, 100, 0.2)'
+              : '-8px 0 32px rgba(0, 0, 0, 0.1)',
           },
         }}
       >
@@ -891,12 +1114,13 @@ export default function SemanticHopHUD({
         bgcolor: isDark ? 'rgba(2, 52, 48, 0.95)' : 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(10px)',
         overflowY: 'auto',
+        overflowX: 'hidden',
         zIndex: 1000,
-        borderRight: '3px solid',
-        borderColor: 'primary.main',
-        boxShadow: isDark 
-          ? '4px 0 24px rgba(0, 237, 100, 0.15)'
-          : '4px 0 24px rgba(0, 0, 0, 0.1)',
+        borderRight: '1px solid',
+        borderColor: 'rgba(0, 237, 100, 0.2)',
+        boxShadow: isDark
+          ? '8px 0 32px rgba(0, 237, 100, 0.15)'
+          : '8px 0 32px rgba(0, 0, 0, 0.1)',
         display: { xs: 'none', md: 'block' },
       }}
     >

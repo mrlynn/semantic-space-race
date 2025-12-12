@@ -25,6 +25,7 @@ import { useTheme } from '@mui/material';
 
 // Topic definitions matching the seed script
 const TOPICS = {
+  'demo': 'Demo - Simple Word Set (HNSW Demo)',
   'architecture-deployment': 'Architecture and Deployment',
   'mongodb-query': 'MongoDB Query',
   'aggregation-commands': 'Aggregation and Commands',
@@ -42,6 +43,7 @@ export default function Lobby({
   currentTopic = 'general-database',
   themeMode = 'dark',
   onThemeToggle = null,
+  onEnterPracticeMode = null,
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -91,15 +93,14 @@ export default function Lobby({
           elevation={6}
           sx={{
             p: 5,
-            borderRadius: 0, // Sharp corners for 8-bit look
+            borderRadius: 3,
             background: paperGradient,
             backdropFilter: 'blur(20px)',
-            border: '3px solid',
-            borderColor: 'primary.main',
-            boxShadow: '6px 6px 0px rgba(0, 237, 100, 0.3)',
+            border: '1px solid',
+            borderColor: 'rgba(0, 237, 100, 0.2)',
+            boxShadow: '0 16px 48px rgba(0, 237, 100, 0.2)',
             position: 'relative',
             overflow: 'hidden',
-            imageRendering: 'pixelated',
           }}
         >
           <BrandShapeDecoration position="top-right" size={150} opacity={brandShapeOpacity.medium} shapeNumber={15} />
@@ -155,6 +156,7 @@ export default function Lobby({
                 fontSize: '1.1rem',
                 fontWeight: 700,
                 boxShadow: '0 4px 14px rgba(0, 237, 100, 0.4)',
+                mb: 2,
                 '&:hover': {
                   boxShadow: '0 6px 20px rgba(0, 237, 100, 0.6)',
                 },
@@ -163,6 +165,34 @@ export default function Lobby({
             >
               Start Game
             </Button>
+          )}
+
+          {onEnterPracticeMode && (
+            <>
+              <Divider sx={{ my: 2 }}>OR</Divider>
+              <Button
+                variant="contained"
+                size="large"
+                fullWidth
+                onClick={() => onEnterPracticeMode(currentTopic || 'general-database')}
+                sx={{
+                  py: 1.5,
+                  borderRadius: 2,
+                  fontSize: '1.1rem',
+                  fontWeight: 700,
+                  bgcolor: 'warning.main',
+                  color: 'warning.contrastText',
+                  '&:hover': {
+                    bgcolor: 'warning.dark',
+                  },
+                }}
+              >
+                🎮 Practice Mode (Free Play)
+              </Button>
+              <Typography variant="body2" align="center" color="text.secondary" sx={{ mt: 1 }}>
+                Explore the word graph without game constraints
+              </Typography>
+            </>
           )}
         </Paper>
       </Container>
@@ -176,15 +206,14 @@ export default function Lobby({
         elevation={6}
         sx={{
           p: 5,
-          borderRadius: 0, // Sharp corners for 8-bit look
+          borderRadius: 3,
           background: paperGradient,
           backdropFilter: 'blur(20px)',
-          border: '3px solid',
-          borderColor: 'primary.main',
-          boxShadow: '6px 6px 0px rgba(0, 237, 100, 0.3)',
+          border: '1px solid',
+          borderColor: 'rgba(0, 237, 100, 0.2)',
+          boxShadow: '0 16px 48px rgba(0, 237, 100, 0.2)',
           position: 'relative',
           overflow: 'hidden',
-          imageRendering: 'pixelated',
         }}
       >
         <BrandShapeDecoration position="top-left" size={160} opacity={brandShapeOpacity.mediumLow} shapeNumber={8} />
@@ -299,6 +328,7 @@ export default function Lobby({
             fontSize: '1.1rem',
             fontWeight: 700,
             borderWidth: 2,
+            mb: 2,
             '&:hover': {
               borderWidth: 2,
             },
@@ -306,6 +336,34 @@ export default function Lobby({
         >
           Create New Game
         </Button>
+
+        {onEnterPracticeMode && (
+          <>
+            <Divider sx={{ my: 2 }}>OR</Divider>
+            <Button
+              variant="contained"
+              size="large"
+              fullWidth
+              onClick={() => onEnterPracticeMode(selectedTopic)}
+              sx={{
+                py: 1.5,
+                borderRadius: 2,
+                fontSize: '1.1rem',
+                fontWeight: 700,
+                bgcolor: 'warning.main',
+                color: 'warning.contrastText',
+                '&:hover': {
+                  bgcolor: 'warning.dark',
+                },
+              }}
+            >
+              🎮 Practice Mode (Free Play)
+            </Button>
+            <Typography variant="body2" align="center" color="text.secondary" sx={{ mt: 1 }}>
+              Explore the word graph without game constraints
+            </Typography>
+          </>
+        )}
       </Paper>
     </Container>
   );

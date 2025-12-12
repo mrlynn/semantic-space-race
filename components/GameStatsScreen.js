@@ -109,13 +109,13 @@ export default function GameStatsScreen({
                         #{index + 1} {player.nickname}
                       </Typography>
                       {isWinner && (
-                        <Chip 
-                          label="Winner" 
-                          color="primary" 
+                        <Chip
+                          label="Winner"
+                          color="primary"
                           size="small"
                           sx={{
-                            fontFamily: '"PressStart2PRegular", monospace',
-                            fontSize: '0.625rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
                           }}
                         />
                       )}
@@ -147,21 +147,8 @@ export default function GameStatsScreen({
               sx={{
                 px: 4,
                 py: 1.5,
-                borderRadius: 0, // Sharp corners for 8-bit look
                 fontSize: '1rem',
                 fontWeight: 700,
-                fontFamily: '"PressStart2PRegular", monospace',
-                border: '3px solid',
-                borderColor: 'primary.dark',
-                boxShadow: '4px 4px 0px rgba(0, 0, 0, 0.3)',
-                '&:hover': {
-                  transform: 'translate(-1px, -1px)',
-                  boxShadow: '5px 5px 0px rgba(0, 0, 0, 0.3)',
-                },
-                '&:active': {
-                  transform: 'translate(2px, 2px)',
-                  boxShadow: '2px 2px 0px rgba(0, 0, 0, 0.3)',
-                },
               }}
             >
               Return to Lobby

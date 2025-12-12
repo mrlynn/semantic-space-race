@@ -2,21 +2,24 @@
 
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Text, Sphere, Line, Html, Billboard } from '@react-three/drei';
+import { OrbitControls, Text, Line, Html, Billboard } from '@react-three/drei';
+import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import Starfield from './Starfield';
+import Nebula from './Nebula';
 import { cosineSimilarity } from '@/lib/utils';
 import ShootingSystem from './ShootingSystem';
 import Crosshair from './Crosshair';
 import VectorGem from './VectorGem';
+import BadAsteroid from './BadAsteroid';
+import FacetedGem from './FacetedGem';
+import PlayerShip from './PlayerShip';
 
 // Force-directed graph node component - memoized for performance
 const GraphNode = React.memo(function GraphNode({ word, isCurrent, isRelated, onClick, position, themeMode = 'dark' }) {
   const meshRef = useRef();
-  const glowRef = useRef();
 
   const baseColor = isCurrent ? '#00ED64' : isRelated ? '#FFB800' : '#00684A';
-  const glowColor = isCurrent ? '#00ED64' : isRelated ? '#FFB800' : '#00684A';
   const baseScale = isCurrent ? 10 : isRelated ? 8 : 6;
   const currentPosition = useRef([0, 0, 0]);
 
@@ -57,21 +60,13 @@ const GraphNode = React.memo(function GraphNode({ word, isCurrent, isRelated, on
 
   return (
     <group position={pos}>
-      {(isCurrent || isRelated) && (
-        <Sphere ref={glowRef} args={[baseScale * 1.2, 16, 16]}>
-          <meshStandardMaterial
-            color={glowColor}
-            emissive={glowColor}
-            emissiveIntensity={isCurrent ? 0.6 : 0.3}
-            transparent
-            opacity={0.2}
-          />
-        </Sphere>
-      )}
-
-      <Sphere
-        ref={meshRef}
-        args={[baseScale, 32, 32]}
+      {/* Faceted Gem - replaces spheres */}
+      <FacetedGem
+        size={baseScale}
+        color={baseColor}
+        isActive={isCurrent}
+        isHighlighted={isRelated}
+        emissiveIntensity={isCurrent ? 0.4 : isRelated ? 0.3 : 0.2}
         onClick={onClick}
         onPointerOver={(e) => {
           e.stopPropagation();
@@ -81,30 +76,23 @@ const GraphNode = React.memo(function GraphNode({ word, isCurrent, isRelated, on
           document.body.style.cursor = 'default';
         }}
       >
-        <meshStandardMaterial
-          color={baseColor}
-          emissive={isCurrent ? baseColor : isRelated ? glowColor : '#000000'}
-          emissiveIntensity={isCurrent ? 0.5 : isRelated ? 0.25 : 0}
-          metalness={0.8}
-          roughness={0.2}
-        />
-      </Sphere>
-
-      <Billboard position={[0, baseScale + 3, 0]}>
-        <Text
-          fontSize={4}
-          color={isCurrent ? '#00ED64' : (themeMode === 'dark' ? '#FFFFFF' : '#001E2B')}
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={themeMode === 'dark' ? 0.3 : 0.5}
-          outlineColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
-          fontWeight="bold"
-          strokeWidth={themeMode === 'dark' ? 0.02 : 0.1}
-          strokeColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
-        >
-          {word.label}
-        </Text>
-      </Billboard>
+        {/* Word label */}
+        <Billboard position={[0, baseScale + 3, 0]}>
+          <Text
+            fontSize={4}
+            color={isCurrent ? '#00ED64' : (themeMode === 'dark' ? '#FFFFFF' : '#001E2B')}
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={themeMode === 'dark' ? 0.3 : 0.5}
+            outlineColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
+            fontWeight="bold"
+            strokeWidth={themeMode === 'dark' ? 0.02 : 0.1}
+            strokeColor={themeMode === 'dark' ? '#001E2B' : '#FFFFFF'}
+          >
+            {word.label}
+          </Text>
+        </Billboard>
+      </FacetedGem>
     </group>
   );
 }, (prevProps, nextProps) => {
@@ -488,6 +476,8 @@ export default function WordGraphForceDirected({
   onWordClick,
   vectorGems = [],
   onGemHit = null,
+  badAsteroids = [],
+  onBadAsteroidHit = null,
   themeMode = 'dark',
   onCameraControlsReady = null,
 }) {
@@ -495,6 +485,7 @@ export default function WordGraphForceDirected({
   const cameraRef = useRef();
   const [nodePositions, setNodePositions] = useState({});
   const [nodeVelocities, setNodeVelocities] = useState({});
+  const [shipPosition, setShipPosition] = useState(null);
 
   // Initialize positions from words
   useEffect(() => {
@@ -617,7 +608,7 @@ export default function WordGraphForceDirected({
           position: cameraPosition,
           fov: 75,
           near: 0.01,
-          far: 100000,
+          far: 1000000, // Increased far plane to support very large worlds
         }}
         style={{ 
           width: '100%', 
@@ -625,7 +616,11 @@ export default function WordGraphForceDirected({
           background: themeMode === 'dark' ? '#001E2B' : '#F5F5F5' 
         }}
       >
-      <Starfield count={2000} radius={300} />
+      {/* Nebula clouds - atmospheric depth */}
+      <Nebula count={8} radius={4000} themeMode={themeMode} />
+
+      {/* Starfield background */}
+      <Starfield count={1000} radius={5000} />
       <ambientLight intensity={0.5} />
       <pointLight position={[20, 20, 20]} color="#00ED64" intensity={1.5} />
       <pointLight position={[-20, -20, -20]} color="#00684A" intensity={1.0} />
@@ -706,7 +701,31 @@ export default function WordGraphForceDirected({
         );
       })}
 
-      {/* Shooting System - allows firing bullets at words and gems */}
+      {/* Render Bad Asteroids */}
+      {badAsteroids && badAsteroids.map(asteroid => {
+        const now = Date.now();
+        if (asteroid.hitBy || (now - asteroid.spawnTime) >= 30000) return null;
+        return (
+          <BadAsteroid
+            key={asteroid.id}
+            asteroid={asteroid}
+            onHit={onBadAsteroidHit}
+            themeMode={themeMode}
+          />
+        );
+      })}
+
+      {/* Player Ship - Asteroids-style triangle at bottom center */}
+      <PlayerShip
+        color="#00ED64"
+        scale={1.2}
+        offset={{ x: 0, y: -1.2, z: -2 }}
+        showThrusters={true}
+        themeMode={themeMode}
+        onPositionUpdate={setShipPosition}
+      />
+
+      {/* Shooting System - fires from ship position */}
       <ShootingSystem
         words={filteredWords.map(word => ({
           ...word,
@@ -715,8 +734,11 @@ export default function WordGraphForceDirected({
         onWordHit={onWordClick}
         vectorGems={vectorGems}
         onGemHit={onGemHit}
+        badAsteroids={badAsteroids}
+        onBadAsteroidHit={onBadAsteroidHit}
         enabled={true}
         themeMode={themeMode}
+        shipPosition={shipPosition}
       />
 
       <OrbitControls
@@ -724,12 +746,12 @@ export default function WordGraphForceDirected({
         enablePan={true}
         enableZoom={true}
         enableRotate={true}
-        minDistance={50}
-        maxDistance={5000}
+        minDistance={0.1} // Allow zooming in extremely close
+        maxDistance={Infinity} // No maximum distance limit - can zoom out forever to reach all nodes
         autoRotate={false}
-        panSpeed={2.0}
-        zoomSpeed={1.5}
-        rotateSpeed={0.8}
+        panSpeed={5.0} // Faster panning for better navigation
+        zoomSpeed={3.0} // Faster zooming for quicker exploration
+        rotateSpeed={1.0} // Smooth rotation
         screenSpacePanning={true}
         minPolarAngle={0}
         maxPolarAngle={Math.PI}
@@ -738,7 +760,23 @@ export default function WordGraphForceDirected({
         enableDamping={true}
         dampingFactor={0.1}
         makeDefault={true}
+        mouseButtons={{
+          LEFT: -1,                   // Disable left button (used for shooting)
+          MIDDLE: THREE.MOUSE.DOLLY,  // Middle button/wheel for zoom
+          RIGHT: THREE.MOUSE.ROTATE,  // Right button for rotation
+        }}
       />
+
+      {/* Post-processing effects - subtle bloom */}
+      <EffectComposer>
+        <Bloom
+          intensity={0.3}
+          luminanceThreshold={0.6}
+          luminanceSmoothing={0.9}
+          mipmapBlur={true}
+          radius={0.5}
+        />
+      </EffectComposer>
     </Canvas>
     <Crosshair themeMode={themeMode} />
     </div>
