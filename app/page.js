@@ -16,6 +16,7 @@ import BrandShapes from '@/components/BrandShapes';
 import InviteFriends from '@/components/InviteFriends';
 import NavigationControls from '@/components/NavigationControls';
 import CountdownOverlay from '@/components/CountdownOverlay';
+import RiddleOverlay from '@/components/RiddleOverlay';
 import { celebrateCorrectGuess } from '@/lib/celebration';
 import { preloadAvatars } from '@/components/PlayerAvatar';
 import GameStatsScreen from '@/components/GameStatsScreen';
@@ -2441,6 +2442,15 @@ export default function Home() {
             threshold={10000}
           />
         )}
+
+        {/* Riddle Overlay - Shows riddle on game screen */}
+        <RiddleOverlay
+          definition={definition}
+          practiceMode={practiceMode}
+          currentTarget={currentTarget}
+          roundPhase={roundPhase}
+          gameActive={gameActive}
+        />
 
         <Snackbar
           open={toast.open}

@@ -26,6 +26,7 @@ import { useTheme } from '@mui/material';
 // Topic definitions matching the seed script
 const TOPICS = {
   'demo': 'Demo - Simple Word Set (HNSW Demo)',
+  'nature': 'Nature - Ecosystem Word Set (HNSW Demo)',
   'architecture-deployment': 'Architecture and Deployment',
   'mongodb-query': 'MongoDB Query',
   'aggregation-commands': 'Aggregation and Commands',

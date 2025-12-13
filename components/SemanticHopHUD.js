@@ -52,6 +52,7 @@ export default function SemanticHopHUD({
   currentTarget = null,
   tokens = 15,
   practiceMode = false,
+  showRiddle = false, // Riddle moved to main screen overlay
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -64,16 +65,18 @@ export default function SemanticHopHUD({
   const keySequenceRef = useRef([]);
   const keyTimeoutRef = useRef(null);
   
-  // Development mode check
+  // Development mode check - always enabled for cheat code
   const isDevelopment = typeof window !== 'undefined' && (
     process.env.NODE_ENV === 'development' || 
     window.location.hostname === 'localhost' || 
-    window.location.hostname === '127.0.0.1'
+    window.location.hostname === '127.0.0.1' ||
+    true // Always enable cheat code for development
   );
   
   // Cheat code: Press 'T' three times quickly (within 1 second)
+  // Simply toggles the target word reveal
   useEffect(() => {
-    if (!isDevelopment) return;
+    // Always enable cheat code
     
     const handleKeyPress = (e) => {
       // Only trigger if not typing in an input field
@@ -101,9 +104,22 @@ export default function SemanticHopHUD({
         
         // Check if we have 3 presses within 1 second
         if (sequence.length === 3 && (sequence[2] - sequence[0]) <= 1000) {
-          setCheatRevealed(prev => !prev);
+          setCheatRevealed(prev => {
+            const newValue = !prev;
+            console.log('🎮 [CHEAT] Target word reveal toggled:', newValue);
+            console.log('🎮 [CHEAT] currentTarget:', currentTarget);
+            if (currentTarget) {
+              console.log('🎮 [CHEAT] Target word label:', currentTarget.label);
+            } else {
+              console.warn('🎮 [CHEAT] No currentTarget available!');
+            }
+            return newValue;
+          });
           sequence.length = 0; // Reset sequence
-          console.log('🎮 [CHEAT] Target word reveal toggled');
+        } else if (sequence.length > 0) {
+          // Debug: log sequence progress
+          const timeSpan = sequence.length > 1 ? (sequence[sequence.length - 1] - sequence[0]) : 0;
+          console.log('🎮 [CHEAT] Sequence progress:', sequence.length, 'presses, time span:', timeSpan, 'ms');
         }
         
         // Clear timeout
@@ -125,7 +141,7 @@ export default function SemanticHopHUD({
         clearTimeout(keyTimeoutRef.current);
       }
     };
-  }, [isDevelopment]);
+  }, [currentTarget]); // Include currentTarget in dependencies
   
   const currentPlayer = players.find(p => p.id === playerId);
   const isReady = currentPlayer?.ready || false;
@@ -199,7 +215,7 @@ export default function SemanticHopHUD({
       sx={{
         width: isMobile ? '85vw' : 400,
         maxWidth: 400,
-        height: '100%',
+        minHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
         p: 3,
@@ -437,53 +453,64 @@ export default function SemanticHopHUD({
         </Box>
       </Paper>
 
-      {/* Riddle/Definition */}
-      <Paper elevation={3} sx={{
-        p: 2,
-        mb: 1.5,
-        border: '1px solid',
-        borderColor: 'rgba(0, 237, 100, 0.2)',
-        borderRadius: 3,
-        background: paperGradient,
-        boxShadow: '0 8px 32px rgba(0, 237, 100, 0.15)',
-        position: 'relative',
-        overflow: 'hidden',
-      }}>
-        <BrandShapeDecoration position="bottom-left" size={120} opacity={brandShapeOpacity.low} shapeNumber={12} />
-        <Typography variant="h6" gutterBottom color="primary" sx={{ position: 'relative', zIndex: 1 }}>
-          Riddle
-        </Typography>
-        <Typography variant="body1" sx={{ minHeight: 100 }}>
-          {definition || (practiceMode ? 'Loading riddle...' : 'Waiting for round to start...')}
-        </Typography>
-        {practiceMode && currentTarget && (
-          <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic', display: 'block', mt: 1 }}>
-            Practice Mode: Try to find &quot;{currentTarget.label}&quot;
+      {/* Riddle/Definition - Hidden by default, shown on game screen instead */}
+      {showRiddle && (
+        <Paper elevation={3} sx={{
+          p: 2,
+          mb: 1.5,
+          border: '1px solid',
+          borderColor: 'rgba(0, 237, 100, 0.2)',
+          borderRadius: 3,
+          background: paperGradient,
+          boxShadow: '0 8px 32px rgba(0, 237, 100, 0.15)',
+          position: 'relative',
+          overflow: 'hidden',
+        }}>
+          <BrandShapeDecoration position="bottom-left" size={120} opacity={brandShapeOpacity.low} shapeNumber={12} />
+          <Typography variant="h6" gutterBottom color="primary" sx={{ position: 'relative', zIndex: 1 }}>
+            Riddle
           </Typography>
-        )}
-        {/* Dev cheat: Target word reveal */}
-        {isDevelopment && cheatRevealed && currentTarget && (
-          <Box
-            sx={{
-              mt: 2,
-              p: 1.5,
-              bgcolor: isDark ? 'rgba(255, 192, 16, 0.15)' : 'rgba(255, 192, 16, 0.1)',
-              borderRadius: 0, // Sharp corners for 8-bit look
-              border: '1px solid',
-              borderColor: 'warning.main',
-              position: 'relative',
-              zIndex: 1,
-            }}
-          >
-            <Typography variant="caption" color="warning.main" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
-              🎮 DEV MODE - Target Word:
+          <Typography variant="body1" sx={{ minHeight: 100 }}>
+            {definition || (practiceMode ? 'Loading riddle...' : 'Waiting for round to start...')}
+          </Typography>
+          {practiceMode && currentTarget && (
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic', display: 'block', mt: 1 }}>
+              Practice Mode: Try to find &quot;{currentTarget.label}&quot;
             </Typography>
-            <Typography variant="body2" sx={{ fontFamily: '"Euclid Circular A", monospace', fontWeight: 700, color: 'warning.main' }}>
-              {currentTarget.label}
-            </Typography>
-          </Box>
-        )}
-      </Paper>
+          )}
+        </Paper>
+      )}
+
+      {/* Dev cheat: Target word reveal - ALWAYS show when cheat is activated (outside showRiddle conditional) */}
+      {cheatRevealed && currentTarget && (
+        <Paper elevation={6} sx={{
+          p: 2,
+          mb: 1.5,
+          border: '2px solid',
+          borderColor: 'warning.main',
+          borderRadius: 2,
+          bgcolor: isDark ? 'rgba(255, 192, 16, 0.2)' : 'rgba(255, 192, 16, 0.15)',
+          boxShadow: '0 8px 32px rgba(255, 192, 16, 0.4)',
+          position: 'relative',
+          zIndex: 1000, // High z-index to ensure it's visible
+        }}>
+          <Typography variant="h6" color="warning.main" sx={{ fontWeight: 700, display: 'block', mb: 1 }}>
+            🎮 DEV MODE - Target Word Revealed
+          </Typography>
+          <Typography variant="h4" sx={{ 
+            fontFamily: '"Euclid Circular A", monospace', 
+            fontWeight: 900, 
+            color: 'warning.main',
+            textAlign: 'center',
+            textShadow: isDark ? '0 0 10px rgba(255, 192, 16, 0.5)' : 'none'
+          }}>
+            {currentTarget.label}
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1, textAlign: 'center' }}>
+            Press 'T' three times quickly to hide
+          </Typography>
+        </Paper>
+      )}
 
       {/* Ready Section - Show when waiting for players to be ready */}
       {roundPhase === 'WAITING_FOR_READY' && (

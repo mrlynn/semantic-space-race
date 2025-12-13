@@ -16,10 +16,11 @@ export default function ShootingSystem({
   themeMode = 'dark',
   shipPosition = null // Position of player ship to fire from
 }) {
-  const { camera, raycaster, gl } = useThree();
+  const { camera, gl } = useThree();
   const [beams, setBeams] = useState([]);
   const [impacts, setImpacts] = useState([]);
   const [muzzleFlashes, setMuzzleFlashes] = useState([]);
+  // Create our own raycaster instance for precise control
   const raycasterRef = useRef(new THREE.Raycaster());
   const mouseRef = useRef(new THREE.Vector2());
   const spacebarPressedRef = useRef(false);
@@ -74,8 +75,45 @@ export default function ShootingSystem({
       console.log('🔫 [SHOOT] Using spacebar, camera pos:', camera.position, 'direction:', rayDirection);
     } else {
       // Click: use mouse position
+      // Ensure mouse coordinates are valid
+      if (isNaN(mouseRef.current.x) || isNaN(mouseRef.current.y)) {
+        console.warn('🔫 [SHOOT] Invalid mouse coordinates, using center of screen');
+        mouseRef.current.set(0, 0);
+      }
+      
+      // Set raycaster from camera and mouse position
+      // IMPORTANT: setFromCamera expects NDC coordinates where:
+      // - X: -1 (left) to +1 (right)  
+      // - Y: +1 (top) to -1 (bottom) - Y is inverted!
       raycasterRef.current.setFromCamera(mouseRef.current, camera);
-      console.log('🔫 [SHOOT] Using mouse, mouse pos:', mouseRef.current, 'camera pos:', camera.position);
+      
+      // Verify the ray is properly set
+      const ray = raycasterRef.current.ray;
+      
+      // Ensure ray direction is normalized (should be, but double-check)
+      if (ray.direction.length() > 0) {
+        ray.direction.normalize();
+      } else {
+        console.error('🔫 [SHOOT] Invalid ray direction (zero length)!');
+        return;
+      }
+      
+      // Debug: log ray details for aiming verification
+      console.log('🔫 [SHOOT] Ray from mouse:', {
+        mouseNDC: { x: mouseRef.current.x.toFixed(4), y: mouseRef.current.y.toFixed(4) },
+        rayOrigin: { x: ray.origin.x.toFixed(2), y: ray.origin.y.toFixed(2), z: ray.origin.z.toFixed(2) },
+        rayDirection: { x: ray.direction.x.toFixed(4), y: ray.direction.y.toFixed(4), z: ray.direction.z.toFixed(4) },
+        rayDirectionLength: ray.direction.length().toFixed(4),
+        cameraPos: { x: camera.position.x.toFixed(2), y: camera.position.y.toFixed(2), z: camera.position.z.toFixed(2) },
+        cameraFOV: camera.fov,
+        cameraAspect: camera.aspect,
+        // Calculate where ray would hit at a specific distance (for visualization)
+        rayAt1000: {
+          x: (ray.origin.x + ray.direction.x * 1000).toFixed(2),
+          y: (ray.origin.y + ray.direction.y * 1000).toFixed(2),
+          z: (ray.origin.z + ray.direction.z * 1000).toFixed(2)
+        }
+      });
     }
     
     // Find all objects to intersect with (prioritize gems > asteroids > words)
@@ -95,10 +133,10 @@ export default function ShootingSystem({
         return;
       }
       
-      // Check if gem expired (30 seconds)
+      // Check if gem expired (29 seconds - slightly before server's 30s to account for network latency)
       const now = Date.now();
       const age = now - gem.spawnTime;
-      if (age >= 30000) {
+      if (age >= 29000) { // Check at 29s, server allows up to 32s (30s + 2s grace)
         if (index < 3) console.log(`💎 [SHOOT] Gem ${index} (${gem.id}) skipped: expired (age: ${age}ms)`);
         return;
       }
@@ -116,61 +154,97 @@ export default function ShootingSystem({
       const currentPos = initialPos.clone().add(velocity.clone().multiplyScalar(ageInSeconds));
       
       const baseSize = 15;
-      const gemRadius = baseSize * gem.size * 1.2; // Slightly larger hit radius
+      // Account for pulsing scale (can be up to 1.2x), glow (1.3x), and make hit radius very generous
+      // Visual size can be: baseSize * gem.size * pulse(1.2) * glow(1.3) = baseSize * gem.size * 1.56
+      // Use 3.0x multiplier to ensure we catch hits even with position drift
+      const gemRadius = baseSize * (gem.size || 1) * 3.0;
       
       // Create a bounding sphere for the gem at its current position
       const sphere = new THREE.Sphere(currentPos, gemRadius);
       
-      // Check if ray intersects with the sphere
-      const intersectionPoint = new THREE.Vector3();
+      // Check if ray intersects with the sphere using distance-based calculation
       const ray = raycasterRef.current.ray;
       
-      // Debug: log gem info for first gem
-      if (index === 0) {
-        const distanceToGem = camera.position.distanceTo(currentPos);
-        console.log(`💎 [SHOOT] Gem 0 (${gem.id}):`, {
-          initialPos: { x: initialPos.x.toFixed(2), y: initialPos.y.toFixed(2), z: initialPos.z.toFixed(2) },
-          velocity: { x: velocity.x.toFixed(2), y: velocity.y.toFixed(2), z: velocity.z.toFixed(2) },
-          ageInSeconds: ageInSeconds.toFixed(2),
-          currentPos: { x: currentPos.x.toFixed(2), y: currentPos.y.toFixed(2), z: currentPos.z.toFixed(2) },
-          radius: gemRadius.toFixed(2),
-          rayOrigin: { x: ray.origin.x.toFixed(2), y: ray.origin.y.toFixed(2), z: ray.origin.z.toFixed(2) },
-          rayDirection: { x: ray.direction.x.toFixed(4), y: ray.direction.y.toFixed(4), z: ray.direction.z.toFixed(4) },
-          distanceToGem: distanceToGem.toFixed(2)
-        });
-      }
+      // Calculate closest point on ray to sphere center
+      const rayToCenter = currentPos.clone().sub(ray.origin);
+      // Ensure ray direction is normalized
+      const rayDirectionNorm = ray.direction.length() > 0 
+        ? ray.direction.clone().normalize() 
+        : new THREE.Vector3(0, 0, -1); // Fallback if direction is zero
+      const t = rayToCenter.dot(rayDirectionNorm);
       
-      const didIntersect = ray.intersectSphere(sphere, intersectionPoint);
-      if (didIntersect) {
-        // Calculate distance from camera to intersection
-        const distance = camera.position.distanceTo(intersectionPoint);
-        console.log('💎 [SHOOT] Gem hit detected!', {
-          gemId: gem.id,
-          index,
-          distance,
-          currentPos: { x: currentPos.x, y: currentPos.y, z: currentPos.z },
-          gemRadius,
-          intersectionPoint: { x: intersectionPoint.x, y: intersectionPoint.y, z: intersectionPoint.z }
-        });
-        gemIntersects.push({
-          gem,
-          distance,
-          point: intersectionPoint,
-        });
+      // If t < 0, sphere is behind the ray origin (no hit)
+      if (t >= 0) {
+        // Closest point on ray to sphere center
+        const closestPoint = ray.origin.clone().add(rayDirectionNorm.clone().multiplyScalar(t));
+        // Distance from closest point to sphere center
+        const distanceToCenter = closestPoint.distanceTo(currentPos);
+        
+        // Hit if distance is within sphere radius
+        if (distanceToCenter <= gemRadius) {
+          // Calculate intersection point (point on ray closest to sphere surface)
+          const intersectionPoint = currentPos.clone().sub(closestPoint).normalize().multiplyScalar(gemRadius).add(closestPoint);
+          
+          // Debug: log gem info for first gem
+          if (index === 0) {
+            const distanceToGem = camera.position.distanceTo(currentPos);
+            console.log(`💎 [SHOOT] Gem 0 (${gem.id}):`, {
+              initialPos: { x: initialPos.x.toFixed(2), y: initialPos.y.toFixed(2), z: initialPos.z.toFixed(2) },
+              velocity: { x: velocity.x.toFixed(2), y: velocity.y.toFixed(2), z: velocity.z.toFixed(2) },
+              ageInSeconds: ageInSeconds.toFixed(2),
+              currentPos: { x: currentPos.x.toFixed(2), y: currentPos.y.toFixed(2), z: currentPos.z.toFixed(2) },
+              radius: gemRadius.toFixed(2),
+              rayOrigin: { x: ray.origin.x.toFixed(2), y: ray.origin.y.toFixed(2), z: ray.origin.z.toFixed(2) },
+              rayDirection: { x: ray.direction.x.toFixed(4), y: ray.direction.y.toFixed(4), z: ray.direction.z.toFixed(4) },
+              distanceToGem: distanceToGem.toFixed(2),
+              t: t.toFixed(2),
+              distanceToCenter: distanceToCenter.toFixed(2),
+              hit: true
+            });
+          }
+          
+          // Calculate distance from camera to intersection
+          const hitDistance = camera.position.distanceTo(intersectionPoint);
+          console.log('💎 [SHOOT] Gem hit detected!', {
+            gemId: gem.id,
+            index,
+            distance: hitDistance,
+            currentPos: { x: currentPos.x, y: currentPos.y, z: currentPos.z },
+            gemRadius,
+            intersectionPoint: { x: intersectionPoint.x, y: intersectionPoint.y, z: intersectionPoint.z }
+          });
+          gemIntersects.push({
+            gem,
+            distance: hitDistance,
+            point: intersectionPoint,
+          });
+        } else if (index === 0) {
+          // Log why the first gem wasn't hit - distanceToCenter is already calculated above in this scope
+          const rayToGem = currentPos.clone().sub(ray.origin);
+          const rayDir = ray.direction.clone().normalize();
+          const rayToGemDir = rayToGem.clone().normalize();
+          const dot = rayDir.dot(rayToGemDir);
+          const distanceFromOrigin = ray.origin.distanceTo(currentPos);
+          console.log(`💎 [SHOOT] Gem 0 (${gem.id}) NO HIT:`, {
+            distanceFromOrigin: distanceFromOrigin.toFixed(2),
+            gemRadius: gemRadius.toFixed(2),
+            closestDistanceToCenter: distanceToCenter.toFixed(2),
+            t: t.toFixed(2),
+            rayDotProduct: dot.toFixed(4),
+            angleDegrees: (Math.acos(Math.max(-1, Math.min(1, dot))) * (180 / Math.PI)).toFixed(2),
+            willHit: distanceToCenter <= gemRadius,
+            missBy: (distanceToCenter - gemRadius).toFixed(2),
+            rayToGemDirection: { x: rayToGemDir.x.toFixed(4), y: rayToGemDir.y.toFixed(4), z: rayToGemDir.z.toFixed(4) },
+            rayDirection: { x: rayDir.x.toFixed(4), y: rayDir.y.toFixed(4), z: rayDir.z.toFixed(4) }
+          });
+        }
       } else if (index === 0) {
-        // Log why the first gem wasn't hit
-        const rayToGem = currentPos.clone().sub(ray.origin);
-        const rayDir = ray.direction.clone().normalize();
-        const rayToGemDir = rayToGem.clone().normalize();
-        const dot = rayDir.dot(rayToGemDir);
-        const distanceToCenter = ray.origin.distanceTo(currentPos);
-        console.log(`💎 [SHOOT] Gem 0 (${gem.id}) NO HIT:`, {
-          distanceToCenter: distanceToCenter.toFixed(2),
+        // Log why the first gem wasn't hit (behind camera)
+        const distanceToGem = camera.position.distanceTo(currentPos);
+        console.log(`💎 [SHOOT] Gem 0 (${gem.id}) NO HIT (behind camera):`, {
+          distanceToGem: distanceToGem.toFixed(2),
           gemRadius: gemRadius.toFixed(2),
-          rayDotProduct: dot.toFixed(4),
-          angleDegrees: (Math.acos(Math.max(-1, Math.min(1, dot))) * (180 / Math.PI)).toFixed(2),
-          rayToGemDirection: { x: rayToGemDir.x.toFixed(4), y: rayToGemDir.y.toFixed(4), z: rayToGemDir.z.toFixed(4) },
-          rayDirection: { x: rayDir.x.toFixed(4), y: rayDir.y.toFixed(4), z: rayDir.z.toFixed(4) }
+          t: t.toFixed(2)
         });
       }
     });
@@ -195,10 +269,10 @@ export default function ShootingSystem({
           return;
         }
         
-        // Check if asteroid expired (30 seconds)
+        // Check if asteroid expired (29 seconds - slightly before server's 30s to account for network latency)
         const now = Date.now();
         const age = now - asteroid.spawnTime;
-        if (age >= 30000) {
+        if (age >= 29000) { // Check at 29s, server allows up to 32s (30s + 2s grace)
           if (index < 3) console.log(`☄️ [SHOOT] Asteroid ${index} (${asteroid.id}) skipped: expired (age: ${age}ms)`);
           return;
         }
@@ -216,56 +290,87 @@ export default function ShootingSystem({
         const currentPos = initialPos.clone().add(velocity.clone().multiplyScalar(ageInSeconds));
         
         const baseSize = 15;
-        const asteroidRadius = baseSize * (asteroid.size || 1) * 1.2; // Slightly larger hit radius
+        // Account for pulsing scale (can be up to 1.15x), glow (1.2x), and make hit radius very generous
+        // Visual size can be: baseSize * asteroid.size * pulse(1.15) * glow(1.2) = baseSize * asteroid.size * 1.38
+        // Use 3.0x multiplier to ensure we catch hits even with position drift
+        const asteroidRadius = baseSize * (asteroid.size || 1) * 3.0;
         
-        // Create a bounding sphere for the asteroid at its current position
-        const sphere = new THREE.Sphere(currentPos, asteroidRadius);
-        
-        // Check if ray intersects with the sphere
-        const intersectionPoint = new THREE.Vector3();
+        // Check if ray intersects with the asteroid using distance-based calculation
         const ray = raycasterRef.current.ray;
         
-        // Debug: log asteroid info for first asteroid
-        if (index === 0) {
-          console.log(`☄️ [SHOOT] Asteroid 0 (${asteroid.id}):`, {
-            initialPos: { x: initialPos.x, y: initialPos.y, z: initialPos.z },
-            velocity: { x: velocity.x, y: velocity.y, z: velocity.z },
-            ageInSeconds,
-            currentPos: { x: currentPos.x, y: currentPos.y, z: currentPos.z },
-            radius: asteroidRadius,
-            rayOrigin: { x: ray.origin.x, y: ray.origin.y, z: ray.origin.z },
-            rayDirection: { x: ray.direction.x, y: ray.direction.y, z: ray.direction.z },
-            distanceToAsteroid: camera.position.distanceTo(currentPos)
-          });
-        }
+        // Calculate closest point on ray to asteroid center
+        const rayToCenter = currentPos.clone().sub(ray.origin);
+        const rayDirectionNorm = ray.direction.clone().normalize();
+        const t = rayToCenter.dot(rayDirectionNorm);
         
-        if (ray.intersectSphere(sphere, intersectionPoint)) {
-          // Calculate distance from camera to intersection
-          const distance = camera.position.distanceTo(intersectionPoint);
-          console.log('☄️ [SHOOT] Asteroid hit detected!', {
-            asteroidId: asteroid.id,
-            index,
-            distance,
-            currentPos: { x: currentPos.x, y: currentPos.y, z: currentPos.z },
-            asteroidRadius,
-            intersectionPoint: { x: intersectionPoint.x, y: intersectionPoint.y, z: intersectionPoint.z }
-          });
-          asteroidIntersects.push({
-            asteroid,
-            distance,
-            point: intersectionPoint,
-          });
+        // If t < 0, asteroid is behind the ray origin (no hit)
+        if (t >= 0) {
+          // Closest point on ray to asteroid center
+          const closestPoint = ray.origin.clone().add(rayDirectionNorm.clone().multiplyScalar(t));
+          // Distance from closest point to asteroid center
+          const distanceToCenter = closestPoint.distanceTo(currentPos);
+          
+          // Hit if distance is within asteroid radius
+          if (distanceToCenter <= asteroidRadius) {
+            // Calculate intersection point (point on ray closest to asteroid surface)
+            const intersectionPoint = currentPos.clone().sub(closestPoint).normalize().multiplyScalar(asteroidRadius).add(closestPoint);
+            
+            // Debug: log asteroid info for first asteroid
+            if (index === 0) {
+              console.log(`☄️ [SHOOT] Asteroid 0 (${asteroid.id}):`, {
+                initialPos: { x: initialPos.x, y: initialPos.y, z: initialPos.z },
+                velocity: { x: velocity.x, y: velocity.y, z: velocity.z },
+                ageInSeconds,
+                currentPos: { x: currentPos.x, y: currentPos.y, z: currentPos.z },
+                radius: asteroidRadius,
+                rayOrigin: { x: ray.origin.x, y: ray.origin.y, z: ray.origin.z },
+                rayDirection: { x: ray.direction.x, y: ray.direction.y, z: ray.direction.z },
+                distanceToAsteroid: camera.position.distanceTo(currentPos),
+                t: t.toFixed(2),
+                distanceToCenter: distanceToCenter.toFixed(2),
+                hit: true
+              });
+            }
+            // Calculate distance from camera to intersection
+            const hitDistance = camera.position.distanceTo(intersectionPoint);
+            console.log('☄️ [SHOOT] Asteroid hit detected!', {
+              asteroidId: asteroid.id,
+              index,
+              distance: hitDistance,
+              currentPos: { x: currentPos.x, y: currentPos.y, z: currentPos.z },
+              asteroidRadius,
+              intersectionPoint: { x: intersectionPoint.x, y: intersectionPoint.y, z: intersectionPoint.z }
+            });
+            asteroidIntersects.push({
+              asteroid,
+              distance: hitDistance,
+              point: intersectionPoint,
+            });
+          } else if (index === 0) {
+            // Log why the first asteroid wasn't hit - distanceToCenter is already calculated above in this scope
+            const rayToAsteroid = currentPos.clone().sub(ray.origin);
+            const rayDir = ray.direction.clone().normalize();
+            const rayToAsteroidDir = rayToAsteroid.clone().normalize();
+            const dot = rayDir.dot(rayToAsteroidDir);
+            const distanceFromOrigin = ray.origin.distanceTo(currentPos);
+            console.log(`☄️ [SHOOT] Asteroid 0 (${asteroid.id}) NO HIT:`, {
+              distanceFromOrigin: distanceFromOrigin.toFixed(2),
+              asteroidRadius: asteroidRadius.toFixed(2),
+              closestDistanceToCenter: distanceToCenter.toFixed(2),
+              t: t.toFixed(2),
+              rayDotProduct: dot.toFixed(4),
+              angleDegrees: (Math.acos(Math.max(-1, Math.min(1, dot))) * (180 / Math.PI)).toFixed(2),
+              willHit: distanceToCenter <= asteroidRadius,
+              missBy: (distanceToCenter - asteroidRadius).toFixed(2)
+            });
+          }
         } else if (index === 0) {
-          // Log why the first asteroid wasn't hit
-          const rayToAsteroid = currentPos.clone().sub(ray.origin);
-          const rayDir = ray.direction.clone().normalize();
-          const rayToAsteroidDir = rayToAsteroid.clone().normalize();
-          const dot = rayDir.dot(rayToAsteroidDir);
-          console.log(`☄️ [SHOOT] Asteroid 0 (${asteroid.id}) NO HIT:`, {
-            distanceToCenter: ray.origin.distanceTo(currentPos),
+          // Log why the first asteroid wasn't hit (behind camera)
+          const distanceToAsteroid = camera.position.distanceTo(currentPos);
+          console.log(`☄️ [SHOOT] Asteroid 0 (${asteroid.id}) NO HIT (behind camera):`, {
+            distanceToAsteroid: distanceToAsteroid.toFixed(2),
             asteroidRadius,
-            rayDotProduct: dot,
-            angleDegrees: Math.acos(Math.max(-1, Math.min(1, dot))) * (180 / Math.PI)
+            t: t.toFixed(2)
           });
         }
       });
@@ -289,21 +394,33 @@ export default function ShootingSystem({
       // WordGraph3D: baseScale = 8-12, WordGraphForceDirected: baseScale = 6-10, WordGraphHNSW: varies
       const wordRadius = 15; // Generous hit radius for easier targeting
       
-      // Create a bounding sphere for the word
-      const sphere = new THREE.Sphere(wordPos, wordRadius);
-      
-      // Check if ray intersects with the sphere
-      const intersectionPoint = new THREE.Vector3();
+      // Check if ray intersects with the word using distance-based calculation
       const ray = raycasterRef.current.ray;
       
-      if (ray.intersectSphere(sphere, intersectionPoint)) {
-        // Calculate distance from camera to intersection
-        const distance = camera.position.distanceTo(intersectionPoint);
-        wordIntersects.push({
-          word,
-          distance,
-          point: intersectionPoint,
-        });
+      // Calculate closest point on ray to word center
+      const rayToCenter = wordPos.clone().sub(ray.origin);
+      const rayDirectionNorm = ray.direction.clone().normalize();
+      const t = rayToCenter.dot(rayDirectionNorm);
+      
+      // If t < 0, word is behind the ray origin (no hit)
+      if (t >= 0) {
+        // Closest point on ray to word center
+        const closestPoint = ray.origin.clone().add(rayDirectionNorm.clone().multiplyScalar(t));
+        // Distance from closest point to word center
+        const distanceToCenter = closestPoint.distanceTo(wordPos);
+        
+        // Hit if distance is within word radius
+        if (distanceToCenter <= wordRadius) {
+          // Calculate intersection point (point on ray closest to word surface)
+          const intersectionPoint = wordPos.clone().sub(closestPoint).normalize().multiplyScalar(wordRadius).add(closestPoint);
+          // Calculate distance from camera to intersection
+          const hitDistance = camera.position.distanceTo(intersectionPoint);
+          wordIntersects.push({
+            word,
+            distance: hitDistance,
+            point: intersectionPoint,
+          });
+        }
       }
     });
 
@@ -445,9 +562,19 @@ export default function ShootingSystem({
       }
     } else {
       // Miss - still show beam but shorter and red
-      const direction = rayDirection || raycasterRef.current.ray.direction.clone();
+      // Use the ray direction from the raycaster (which is set from mouse position)
+      const ray = raycasterRef.current.ray;
+      const direction = rayDirection || ray.direction.clone().normalize();
       const beamStart = shipPositionRef.current ? shipPositionRef.current.clone() : camera.position.clone();
-      const beamEnd = beamStart.clone().add(direction.multiplyScalar(500));
+      // Extend beam 1000 units in the ray direction
+      const beamEnd = beamStart.clone().add(direction.multiplyScalar(1000));
+      
+      console.log('🔫 [SHOOT] Miss - beam direction:', {
+        direction: { x: direction.x.toFixed(4), y: direction.y.toFixed(4), z: direction.z.toFixed(4) },
+        beamStart: { x: beamStart.x.toFixed(2), y: beamStart.y.toFixed(2), z: beamStart.z.toFixed(2) },
+        beamEnd: { x: beamEnd.x.toFixed(2), y: beamEnd.y.toFixed(2), z: beamEnd.z.toFixed(2) },
+        mouseNDC: { x: mouseRef.current.x.toFixed(4), y: mouseRef.current.y.toFixed(4) }
+      });
 
       setBeams(prev => [...prev, {
         id: Date.now(),
@@ -547,8 +674,46 @@ export default function ShootingSystem({
     if (!isDrag && mouseDown && (event.target.tagName === 'CANVAS' || event.target === gl.domElement)) {
       // Get mouse position in normalized device coordinates (-1 to +1)
       const rect = gl.domElement.getBoundingClientRect();
-      mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      
+      // Calculate mouse position relative to canvas
+      const mouseX = event.clientX - rect.left;
+      const mouseY = event.clientY - rect.top;
+      
+      // Validate canvas dimensions
+      if (rect.width <= 0 || rect.height <= 0) {
+        console.error('🔫 [MOUSE] Invalid canvas dimensions:', rect);
+        return;
+      }
+      
+      // Convert to normalized device coordinates (-1 to +1)
+      // Three.js NDC: X ranges from -1 (left) to +1 (right), Y ranges from +1 (top) to -1 (bottom)
+      // This matches the standard OpenGL/WebGL NDC coordinate system
+      const ndcX = ((mouseX / rect.width) * 2) - 1;
+      const ndcY = -(((mouseY / rect.height) * 2) - 1); // Invert Y axis
+      
+      // Set mouse position directly
+      mouseRef.current.x = ndcX;
+      mouseRef.current.y = ndcY;
+      
+      // Clamp to valid NDC range to prevent out-of-bounds
+      mouseRef.current.x = Math.max(-1, Math.min(1, mouseRef.current.x));
+      mouseRef.current.y = Math.max(-1, Math.min(1, mouseRef.current.y));
+      
+      console.log('🔫 [MOUSE] Click position:', {
+        clientX: event.clientX,
+        clientY: event.clientY,
+        rectLeft: rect.left.toFixed(2),
+        rectTop: rect.top.toFixed(2),
+        rectWidth: rect.width.toFixed(2),
+        rectHeight: rect.height.toFixed(2),
+        mouseX: mouseX.toFixed(2),
+        mouseY: mouseY.toFixed(2),
+        normalizedX: mouseRef.current.x.toFixed(4),
+        normalizedY: mouseRef.current.y.toFixed(4),
+        canvasElement: gl.domElement.tagName,
+        canvasClientWidth: gl.domElement.clientWidth,
+        canvasClientHeight: gl.domElement.clientHeight
+      });
       
       // Shoot using mouse position
       shoot();

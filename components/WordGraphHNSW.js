@@ -829,7 +829,7 @@ function PlayerPositionTracker({
 }
 
 // Navigation controls helper component
-function NavigationHelper({ onControlsReady, controlsRef, cameraRef }) {
+function NavigationHelper({ onControlsReady, controlsRef, cameraRef, wordCenter = [0, 0, 0] }) {
   const { camera } = useThree();
 
   useEffect(() => {
@@ -912,8 +912,18 @@ function NavigationHelper({ onControlsReady, controlsRef, cameraRef }) {
       },
       reset: () => {
         if (controlsRef.current && cameraRef.current) {
-          camera.position.set(0, 0, 2000);
-          controlsRef.current.target.set(0, 0, 0);
+          // Calculate distance from center based on word spread
+          const [cx, cy, cz] = wordCenter;
+          const range = Math.max(
+            Math.abs(cx) * 2,
+            Math.abs(cy) * 2,
+            Math.abs(cz) * 2
+          );
+          const distance = Math.max(range * 1.0, 1500);
+          
+          // Position camera above and behind the word center
+          camera.position.set(cx, cy, cz + distance);
+          controlsRef.current.target.set(cx, cy, cz);
           controlsRef.current.update();
         }
       },
@@ -922,7 +932,7 @@ function NavigationHelper({ onControlsReady, controlsRef, cameraRef }) {
     if (onControlsReady) {
       onControlsReady(controls);
     }
-  }, [camera, controlsRef, cameraRef, onControlsReady]);
+  }, [camera, controlsRef, cameraRef, onControlsReady, wordCenter]);
 
   return null;
 }
@@ -1306,15 +1316,20 @@ export default function WordGraphHNSW({
     }
   }, [currentNodeId, relatedWordIds, filteredWords, adjustedPositions]);
 
-  const cameraPosition = useMemo(() => {
-    if (filteredWords.length === 0) return [0, 0, 2000];
+  // Calculate word center and camera position
+  const { cameraPosition, wordCenter } = useMemo(() => {
+    if (filteredWords.length === 0) {
+      return { cameraPosition: [0, 0, 2000], wordCenter: [0, 0, 0] };
+    }
 
     const positions = filteredWords.map(w => adjustedPositions[w.id] || w.position);
     const xs = positions.map(p => p[0]).filter(x => isFinite(x));
     const ys = positions.map(p => p[1]).filter(y => isFinite(y));
     const zs = positions.map(p => p[2]).filter(z => isFinite(z));
 
-    if (xs.length === 0) return [0, 0, 2000];
+    if (xs.length === 0) {
+      return { cameraPosition: [0, 0, 2000], wordCenter: [0, 0, 0] };
+    }
 
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
@@ -1331,10 +1346,22 @@ export default function WordGraphHNSW({
     const rangeY = maxY - minY;
     const rangeZ = maxZ - minZ;
     const maxRange = Math.max(rangeX, rangeY, rangeZ);
-    const distance = Math.max(maxRange * 1.5, 2000);
+    // Reduce distance multiplier from 1.5 to 1.0 for closer initial view
+    const distance = Math.max(maxRange * 1.0, 1500);
 
-    return [centerX, centerY, centerZ + distance];
+    return {
+      cameraPosition: [centerX, centerY, centerZ + distance],
+      wordCenter: [centerX, centerY, centerZ],
+    };
   }, [filteredWords, adjustedPositions]);
+
+  // Set OrbitControls target to word center when words change
+  useEffect(() => {
+    if (controlsRef.current && wordCenter) {
+      controlsRef.current.target.set(wordCenter[0], wordCenter[1], wordCenter[2]);
+      controlsRef.current.update();
+    }
+  }, [wordCenter]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -1378,6 +1405,7 @@ export default function WordGraphHNSW({
         onControlsReady={onCameraControlsReady}
         controlsRef={controlsRef}
         cameraRef={cameraRef}
+        wordCenter={wordCenter}
       />
 
       <CameraController
@@ -1521,6 +1549,7 @@ export default function WordGraphHNSW({
         enableDamping={true}
         dampingFactor={0.05}
         makeDefault={true}
+        target={wordCenter} // Set target to word center so zooming orbits around the words
         mouseButtons={{
           LEFT: -1,                   // Disable left button (used for shooting)
           MIDDLE: THREE.MOUSE.DOLLY,  // Middle button/wheel for zoom

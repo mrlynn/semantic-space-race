@@ -8,7 +8,7 @@ import * as THREE from 'three';
 export default function VectorGem({ 
   gem, 
   onHit,
-  themeMode = 'dark' 
+  themeMode = 'dark'
 }) {
   const groupRef = useRef();
   const meshRef = useRef();
@@ -32,8 +32,6 @@ export default function VectorGem({
   const size = baseSize * (gem.size || 1);
   const gemColor = '#DC143C'; // Ruby Red
   const glowColor = '#FF1744'; // Bright Ruby Red for glow
-  
-  // Component mounted - debug logging removed to reduce console noise
 
   useFrame((state, delta) => {
     if (hit || despawned || !groupRef.current) return;

@@ -83,21 +83,13 @@ export function EnergyBeam({ start, end, onComplete, isHit = true, color = '#00E
  * Impact effect when beam hits target
  */
 export function ImpactEffect({ position, onComplete, color = '#00ED64' }) {
-  const ringRef = useRef();
-  const [scale, setScale] = useState(0.5);
   const [opacity, setOpacity] = useState(1);
-  const duration = 0.3;
+  const duration = 0.15; // Much faster fade
 
   useFrame((state, delta) => {
     if (opacity > 0) {
-      const newScale = scale + delta * 30;
       const newOpacity = Math.max(0, opacity - delta / duration);
-      setScale(newScale);
       setOpacity(newOpacity);
-
-      if (ringRef.current) {
-        ringRef.current.scale.setScalar(newScale);
-      }
 
       if (newOpacity <= 0 && onComplete) {
         onComplete();
@@ -105,55 +97,20 @@ export function ImpactEffect({ position, onComplete, color = '#00ED64' }) {
     }
   });
 
+  // Minimal impact effect - just a tiny flash, no expanding shapes, no rings, no particles
   return (
     <group position={position}>
-      {/* Expanding ring */}
-      <mesh ref={ringRef} rotation={[Math.random() * Math.PI, Math.random() * Math.PI, 0]}>
-        <ringGeometry args={[3, 4, 16]} />
-        <meshBasicMaterial
-          color={color}
-          transparent
-          opacity={opacity * 0.6}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Center flash */}
-      <mesh>
-        <sphereGeometry args={[2, 8, 8]} />
+      {/* Tiny center flash only - fixed size, no scaling */}
+      <mesh scale={[1, 1, 1]}>
+        <sphereGeometry args={[0.5, 8, 8]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={2}
+          emissiveIntensity={0.8}
           transparent
-          opacity={opacity}
+          opacity={opacity * 0.6}
         />
       </mesh>
-
-      {/* Particle burst */}
-      {[...Array(8)].map((_, i) => {
-        const angle = (i / 8) * Math.PI * 2;
-        const distance = scale * 2;
-        return (
-          <mesh
-            key={i}
-            position={[
-              Math.cos(angle) * distance,
-              Math.sin(angle) * distance,
-              0
-            ]}
-          >
-            <sphereGeometry args={[0.5, 4, 4]} />
-            <meshStandardMaterial
-              color={color}
-              emissive={color}
-              emissiveIntensity={1.5}
-              transparent
-              opacity={opacity * 0.8}
-            />
-          </mesh>
-        );
-      })}
     </group>
   );
 }
@@ -176,31 +133,34 @@ export function MuzzleFlash({ position, direction, onComplete }) {
     }
   });
 
+  // Disabled muzzle flash to prevent giant white shape issue
+  // If needed, can be re-enabled with much smaller size
+  return null;
+  
+  /* Original muzzle flash code - disabled
   return (
     <group position={position}>
-      {/* Cone flash */}
-      <mesh>
-        <coneGeometry args={[2, 4, 8]} />
+      <mesh scale={[1, 1, 1]}>
+        <coneGeometry args={[0.3, 0.6, 8]} />
         <meshStandardMaterial
           color="#00ED64"
           emissive="#00ED64"
-          emissiveIntensity={3}
+          emissiveIntensity={1}
           transparent
-          opacity={opacity * 0.7}
+          opacity={opacity * 0.3}
         />
       </mesh>
-
-      {/* Bright sphere */}
-      <mesh>
-        <sphereGeometry args={[1.5, 8, 8]} />
+      <mesh scale={[1, 1, 1]}>
+        <sphereGeometry args={[0.2, 8, 8]} />
         <meshStandardMaterial
           color="#FFFFFF"
           emissive="#FFFFFF"
-          emissiveIntensity={2}
+          emissiveIntensity={0.8}
           transparent
-          opacity={opacity}
+          opacity={opacity * 0.4}
         />
       </mesh>
     </group>
   );
+  */
 }
