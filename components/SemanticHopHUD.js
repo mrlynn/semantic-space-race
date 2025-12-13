@@ -507,7 +507,7 @@ export default function SemanticHopHUD({
             {currentTarget.label}
           </Typography>
           <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1, textAlign: 'center' }}>
-            Press 'T' three times quickly to hide
+            Press &apos;T&apos; three times quickly to hide
           </Typography>
         </Paper>
       )}
